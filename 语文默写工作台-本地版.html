@@ -220,6 +220,7 @@
 
   dialog{
     border:none; border-radius:10px; padding:24px; width:min(560px,92vw);
+    margin:auto;   /* 抵消全局 *{margin:0}，保证弹框居中 */
     box-shadow:0 20px 60px rgba(0,0,0,.3);
     font-family:"PingFang SC",sans-serif;
   }
@@ -238,6 +239,14 @@
     font-size:13px; cursor:pointer; font-family:inherit;
   }
   dialog button.sure{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  dialog .about-line{ font-size:13.5px; line-height:2; margin-bottom:6px; }
+  dialog .about-line a{ color:var(--blue); word-break:break-all; }
+  .about-row{ margin-top:auto; padding:12px 20px 0; text-align:center; }
+  .about-row button{
+    background:none; border:none; cursor:pointer; font-family:inherit;
+    font-size:11.5px; color:#6f7787; letter-spacing:.15em; padding:4px 10px; border-radius:4px;
+  }
+  .about-row button:hover{ color:#aab1c0; background:var(--side2); }
 
   .empty{
     text-align:center; padding:80px 20px; color:var(--muted);
@@ -289,6 +298,7 @@
   @media print{
     body{ display:block; height:auto; overflow:visible; background:#fff; }
     aside,.toolbar,.ops,.note,.notice,.bank-hint,.side-show,.side-hide{ display:none !important; }
+    #dlg-about{ display:none !important; }
     .badge{ display:none !important; }
     main{ padding:0; overflow:visible; }
     /* 打印件固定单栏、固定字号，不受投屏设置影响 */
@@ -387,6 +397,10 @@
       <span class="chip" id="btn-test-ai">测试连接</span>
     </div>
   </div>
+
+  <div class="about-row">
+    <button type="button" id="btn-about">关于作者</button>
+  </div>
 </aside>
 
 <button class="side-show" id="btn-expand" title="展开左栏（快捷键 S）">☰ 展开左栏</button>
@@ -408,6 +422,15 @@
   <div class="foot">
     <button id="dlg-cancel">取消</button>
     <button class="sure" id="dlg-ok">保存</button>
+  </div>
+</dialog>
+
+<dialog id="dlg-about">
+  <h3>关于作者</h3>
+  <p class="about-line">Powered by 小武同学</p>
+  <p class="about-line">开源地址：<a href="https://github.com/Vavov5/chinese-dictation-workbench" target="_blank" rel="noopener">github.com/Vavov5/chinese-dictation-workbench</a></p>
+  <div class="foot">
+    <button class="sure" id="dlg-about-close">关闭</button>
   </div>
 </dialog>
 
@@ -6535,7 +6558,7 @@ document.addEventListener("keydown", e => {
   const t = e.target;
   const tag = (t && t.tagName ? t.tagName : "").toLowerCase();
   if (tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable)) return;
-  if ($("#dlg").open) return;
+  if ($("#dlg").open || $("#dlg-about").open) return;
   const k = e.key;
   let used = true;
   if (k === "1") setCols(1);
@@ -6914,6 +6937,8 @@ function openEdit(i){
   $("#dlg").showModal();
 }
 $("#dlg-cancel").addEventListener("click", () => { editOrigin = null; $("#dlg").close(); });
+$("#btn-about").addEventListener("click", () => $("#dlg-about").showModal());
+$("#dlg-about-close").addEventListener("click", () => $("#dlg-about").close());
 $("#dlg-ok").addEventListener("click", () => {
   const q = $("#dlg-q").value.trim();
   const a = $("#dlg-a").value.split("\n").map(s => s.trim()).filter(Boolean);
