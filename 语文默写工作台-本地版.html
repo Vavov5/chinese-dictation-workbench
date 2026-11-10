@@ -1,0 +1,7122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>语文默写工作台 · 本地版</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --bg:#e9e7df;
+    --paper:#fbfaf6;
+    --ink:#2c2c2c;
+    --accent:#8c2f24;
+    --line:#d8d4c8;
+    --muted:#8a8578;
+    --side:#1f2430;
+    --side2:#2a3040;
+    --blue:#3c6ea5;
+    --warn:#b8860b;
+  }
+  html,body{ height:100%; }
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    display:flex; height:100vh; overflow:hidden;
+  }
+
+  /* ============ 左侧栏 ============ */
+  /* 桌面版（鼠标 / 键盘）：顶部工具栏 + 左栏可收起。
+     希沃触屏无鼠标的场合请用「语文默写工作台-触屏版.html」，控制按钮在底部。 */
+  aside{
+    width:290px; min-width:290px;
+    background:var(--side);
+    color:#cfd4de;
+    display:flex; flex-direction:column;
+    overflow-y:auto;
+    padding-bottom:20px;
+  }
+  .brand{
+    position:relative; position:sticky; top:0; z-index:3;
+    padding:20px 48px 16px 20px;
+    background:var(--side);
+    border-bottom:1px solid rgba(255,255,255,.07);
+  }
+  .brand h1{ font-size:17px; color:#fff; letter-spacing:.12em; }
+  .brand p{ font-size:11.5px; color:#7d8494; margin-top:6px; letter-spacing:.08em; }
+  .side-hide{
+    position:absolute; top:14px; right:12px;
+    width:26px; height:26px; border-radius:5px;
+    border:1px solid #3a4152; background:var(--side2); color:#aab1c0;
+    font-size:16px; line-height:1; cursor:pointer; font-family:inherit;
+  }
+  .side-hide:hover{ background:#343c4e; color:#fff; }
+  body.side-hidden aside{ display:none; }
+  .side-show{
+    display:none; position:fixed; left:0; top:50%; transform:translateY(-50%); z-index:40;
+    align-items:center; justify-content:center;
+    padding:12px 5px; border-radius:0 6px 6px 0;
+    border:1px solid #4a5265; border-left:none;
+    background:rgba(31,36,48,.93); color:#dfe3ea;
+    writing-mode:vertical-rl; text-orientation:mixed;
+    font-family:"PingFang SC",sans-serif; font-size:11.5px; letter-spacing:.18em;
+    cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.22);
+    opacity:.72; transition:.15s;
+  }
+  .side-show:hover{ opacity:1; background:var(--side); }
+  body.side-hidden .side-show{ display:inline-flex; }
+
+  .section{ padding:14px 20px 4px; }
+  .section label{
+    display:block; font-size:11px; letter-spacing:.2em;
+    color:#6f7787; margin-bottom:8px;
+  }
+  select, input[type=text], input[type=password]{
+    width:100%; background:var(--side2); border:1px solid #3a4152;
+    color:#e6e9ef; border-radius:6px; padding:8px 10px; font-size:13px;
+    outline:none; font-family:inherit;
+  }
+  select:focus, input:focus{ border-color:#5a6780; }
+
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+  .chip{
+    font-size:12px; padding:4px 10px; border-radius:20px;
+    border:1px solid #3a4152; color:#aab1c0; cursor:pointer; transition:.15s;
+    user-select:none;
+  }
+  .chip:hover{ border-color:#5a6780; }
+  .chip.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .gen-btn{
+    margin:18px 20px 10px;
+    background:var(--accent); color:#fff; border:none;
+    padding:12px; border-radius:8px; font-size:15px; letter-spacing:.25em; text-indent:.25em;
+    cursor:pointer; transition:.2s; font-family:inherit;
+    box-shadow:0 4px 14px rgba(140,47,36,.4);
+  }
+  .gen-btn:hover{ background:#a03a2c; }
+  .gen-btn:disabled{ opacity:.5; cursor:wait; }
+
+  .ai-box{
+    margin:8px 20px 20px; padding:14px;
+    background:var(--side2); border:1px solid #3a4152; border-radius:8px;
+    font-size:12px;
+  }
+  .ai-box label{ display:block; color:#6f7787; font-size:11px; letter-spacing:.15em; margin:8px 0 4px; }
+  .ai-box label:first-child{ margin-top:0; }
+  .ai-status{ margin-top:10px; font-size:11px; color:#7d8494; line-height:1.6; }
+  .ai-status b{ color:#9fc17b; }
+  .ai-status.off b{ color:#c9a35c; }
+  .io-row{ display:flex; gap:8px; margin-top:10px; }
+  .io-row .chip{ flex:1; text-align:center; }
+
+  /* ============ 主区域 ============ */
+  main{ flex:1; overflow:auto; display:flex; justify-content:center; padding:0 24px 60px; }
+  .paper{
+    --q-size:20px;
+    width:min(760px,100%);
+    margin-top:28px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    box-shadow:0 4px 24px rgba(0,0,0,.09);
+    padding:42px 48px 52px;
+    border-radius:2px;
+    height:fit-content;
+    font-family:"Source Han Serif SC","Noto Serif SC","Songti SC","STSong","SimSun",serif;
+  }
+  /* 出了卷子以后，纸面按栏数变宽；空白首页仍保持窄幅 */
+  body.has-paper .paper.cols-2{ width:min(1560px,100%); }
+  body.has-paper .paper.cols-1{ width:min(840px,100%); }
+  .paper-head{ text-align:center; border-bottom:2px solid var(--ink); padding-bottom:16px; }
+  .paper-head h2{ font-size:calc(var(--q-size) * 1.2); letter-spacing:.3em; text-indent:.3em; font-weight:600; }
+  .paper-head .sub{ font-size:clamp(12px, calc(var(--q-size) * .62), 16px); color:var(--muted); margin-top:7px; letter-spacing:.12em; font-family:"PingFang SC",sans-serif; }
+
+  /* 顶部工具栏（桌面版） */
+  .toolbar{
+    position:sticky; top:0; z-index:12;
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;
+    margin:12px -48px 4px; padding:7px 48px 8px; gap:9px 14px;
+    background:var(--paper);
+    border-bottom:1px solid var(--line);
+    font-family:"PingFang SC",sans-serif; font-size:12.5px; color:var(--muted);
+  }
+  .toolbar .viewctl{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .toolbar .btns{ display:flex; gap:8px; flex-wrap:wrap; }
+  .tbtn{
+    font-family:inherit; font-size:12px; background:none;
+    border:1px solid #b9b4a6; color:#5c574b; padding:5px 12px;
+    border-radius:3px; cursor:pointer; letter-spacing:.08em; transition:.15s;
+  }
+  .tbtn:hover{ background:#efece2; }
+  .tbtn.primary{ background:var(--ink); border-color:var(--ink); color:#fff; }
+
+  /* 分栏切换 */
+  .seg{ display:inline-flex; border:1px solid #b9b4a6; border-radius:3px; overflow:hidden; }
+  .seg button{
+    font-family:inherit; font-size:12px; background:none; border:none;
+    padding:5px 10px; color:#5c574b; cursor:pointer; letter-spacing:.06em; transition:.15s;
+  }
+  .seg button + button{ border-left:1px solid #d5d0c2; }
+  .seg button:hover:not(.on){ background:#efece2; }
+  .seg button.on{ background:var(--ink); color:#fff; }
+
+  /* 字号调节 */
+  .fs{ display:inline-flex; align-items:center; border:1px solid #b9b4a6; border-radius:3px; overflow:hidden; }
+  .fs button{
+    font-family:inherit; font-size:12px; background:none; border:none;
+    padding:5px 8px; color:#5c574b; cursor:pointer; transition:.15s;
+  }
+  .fs button:hover:not(:disabled){ background:#efece2; }
+  .fs button:disabled{ opacity:.32; cursor:default; }
+  .fs .val{
+    min-width:50px; padding:5px 2px; text-align:center;
+    font-size:12px; color:#5c574b; font-variant-numeric:tabular-nums;
+    background:#f6f3ea; border-left:1px solid #e2ded0; border-right:1px solid #e2ded0;
+  }
+
+  ol{ list-style:none; counter-reset:q; margin-top:6px; }
+  /* 默认两栏；容器不够宽时浏览器会自动退回一栏 */
+  #qlist{ columns:2 360px; column-gap:52px; column-rule:1px solid #e8e4d8; }
+  .paper.cols-1 #qlist{ columns:1; column-rule:none; }
+  li.q{
+    counter-increment:q;
+    padding:16px 0 14px; border-bottom:1px dashed var(--line);
+    font-size:var(--q-size); line-height:1.9;
+    position:relative;
+    break-inside:avoid; -webkit-column-break-inside:avoid; page-break-inside:avoid;
+  }
+  li.q .idx{ color:var(--accent); font-weight:600; }
+  li.q .idx::after{ content:"、"; }
+  .nw{ white-space:nowrap; }
+  .blank{
+    display:inline-block; min-width:6em; max-width:calc(100% - 1.5em); padding:0 .3em;
+    border-bottom:1px solid var(--ink); text-align:center;
+    color:transparent; user-select:none; transition:color .25s;
+    white-space:normal; overflow-wrap:anywhere;
+  }
+  .show-ans .blank{ color:var(--accent); }
+  li.q .ops{
+    position:absolute; right:0; top:14px;
+    display:flex; gap:5px; opacity:0; transition:.15s;
+    font-family:"PingFang SC",sans-serif;
+  }
+  li.q:hover .ops{ opacity:1; }
+  .obtn{
+    font-size:11px; padding:2px 8px; border-radius:3px;
+    border:1px solid #c6c1b2; background:#fff; color:#7a7566; cursor:pointer;
+  }
+  .obtn:hover{ border-color:var(--accent); color:var(--accent); }
+
+  /* 挖空数与答案数不一致的告警 */
+  li.q.bad{ background:#fdf6e3; }
+  li.q.bad .idx{ color:var(--warn); }
+  .badge{
+    display:inline-block; font-size:11px; font-family:"PingFang SC",sans-serif;
+    background:var(--warn); color:#fff; border-radius:3px; padding:1px 7px;
+    margin-left:8px; letter-spacing:.05em; vertical-align:2px;
+  }
+  .show-ans .badge{ display:inline-block; }
+
+  dialog{
+    border:none; border-radius:10px; padding:24px; width:min(560px,92vw);
+    box-shadow:0 20px 60px rgba(0,0,0,.3);
+    font-family:"PingFang SC",sans-serif;
+  }
+  dialog::backdrop{ background:rgba(20,22,28,.5); }
+  dialog h3{ font-size:15px; margin-bottom:14px; letter-spacing:.1em; }
+  dialog textarea{
+    width:100%; height:110px; padding:10px; font-size:13.5px; line-height:1.8;
+    border:1px solid #ccc; border-radius:6px; resize:vertical; outline:none;
+    font-family:inherit;
+  }
+  dialog textarea:focus{ border-color:var(--blue); }
+  dialog .hint{ font-size:11.5px; color:#999; margin:6px 0 14px; line-height:1.7; }
+  dialog .foot{ display:flex; justify-content:flex-end; gap:8px; }
+  dialog button{
+    padding:7px 18px; border-radius:6px; border:1px solid #ccc; background:#fff;
+    font-size:13px; cursor:pointer; font-family:inherit;
+  }
+  dialog button.sure{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .empty{
+    text-align:center; padding:80px 20px; color:var(--muted);
+    font-family:"PingFang SC",sans-serif;
+  }
+  .empty .icon{ font-size:44px; margin-bottom:14px; }
+  .empty p{ font-size:13.5px; line-height:2; }
+  .loading{ text-align:center; padding:60px; color:var(--muted); font-family:"PingFang SC",sans-serif; font-size:13.5px; }
+  .loading .spin{
+    width:28px;height:28px;border:3px solid #dcd8ca;border-top-color:var(--accent);
+    border-radius:50%; margin:0 auto 14px; animation:sp 1s linear infinite;
+  }
+  @keyframes sp{ to{ transform:rotate(360deg); } }
+
+  .note{
+    margin-top:20px; padding:12px 14px; border-left:3px solid var(--line);
+    font-family:"PingFang SC",sans-serif; font-size:11.5px; color:var(--muted); line-height:1.9;
+  }
+  .note b{ color:#6b665a; }
+
+  /* 题库统计提示 */
+  .bank-hint{
+    margin-top:8px; font-family:"PingFang SC",sans-serif;
+    font-size:11.5px; line-height:1.7; color:#7d8494;
+  }
+  .bank-hint b{ color:#cfd4de; }
+  .bank-hint.none{ color:#c9a35c; }
+  .chip.zero{ opacity:.42; }
+  .chip .cnt{
+    font-size:10px; margin-left:4px; opacity:.75;
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* 题型题量不足提示 */
+  .notice{
+    font-family:"PingFang SC",sans-serif; font-size:12px; line-height:1.7;
+    color:#8a6d1f; background:#fdf6e3; border:1px solid #ecd9a0;
+    border-radius:4px; padding:7px 10px; margin:10px 0 0;
+  }
+
+  .toast{
+    position:fixed; bottom:26px; left:50%; transform:translateX(-50%);
+    background:rgba(28,32,38,.92); color:#fff; font-size:13px;
+    padding:9px 18px; border-radius:6px; opacity:0; transition:.3s;
+    pointer-events:none; font-family:"PingFang SC",sans-serif; z-index:99;
+  }
+  .toast.on{ opacity:1; }
+
+  @media print{
+    body{ display:block; height:auto; overflow:visible; background:#fff; }
+    aside,.toolbar,.ops,.note,.notice,.bank-hint,.side-show,.side-hide{ display:none !important; }
+    .badge{ display:none !important; }
+    main{ padding:0; overflow:visible; }
+    /* 打印件固定单栏、固定字号，不受投屏设置影响 */
+    .paper,
+    body.has-paper .paper.cols-1,
+    body.has-paper .paper.cols-2{
+      --q-size:12.5pt !important;
+      box-shadow:none; border:none; width:100%; max-width:none;
+      margin-top:0;
+    }
+    #qlist{ columns:1 !important; column-rule:none !important; }
+    li.q.bad{ background:none; }
+    /* 无论是否点了「显示答案」，打印件都不带答案 */
+    .show-ans .blank{ color:transparent !important; }
+  }
+  @media (max-width:760px){
+    body{ flex-direction:column; overflow:auto; height:auto; }
+    aside{ width:100%; min-width:0; }
+    main{ padding:16px 12px 40px; }   /* 桌面版无底部工具条，留常规边距 */
+    .paper{ padding:26px 18px 36px; margin-top:0; }
+    .toolbar{ margin:12px -18px 4px; padding:7px 18px 8px; }
+    #qlist{ columns:1 !important; }
+    body.has-paper .paper.cols-1,
+    body.has-paper .paper.cols-2{ width:100%; }
+    .side-show{
+      top:auto; bottom:18px; left:50%; transform:translateX(-50%);
+      writing-mode:horizontal-tb; padding:7px 12px;
+      border-radius:6px; border-left:1px solid #4a5265; letter-spacing:.08em;
+    }
+  }
+</style>
+</head>
+<body>
+
+<aside>
+  <div class="brand">
+    <h1>语文默写工作台</h1>
+    <p>本地离线版 · 无需联网<br>选篇目 · 生成试卷 · 打印即用</p>
+    <button class="side-hide" id="btn-collapse" title="收起左栏（快捷键 S）" aria-label="收起左栏">‹</button>
+  </div>
+
+  <div class="section">
+    <label>教 材</label>
+    <select id="book"></select>
+  </div>
+
+  <div class="section">
+    <label>课 文 篇 目</label>
+    <select id="text"></select>
+  </div>
+
+  <div class="section">
+    <label>题 量</label>
+    <select id="count">
+      <option value="5">5 题</option>
+      <option value="8" selected>8 题</option>
+      <option value="10">10 题</option>
+    </select>
+  </div>
+
+  <div class="section">
+    <label>题 型</label>
+    <div class="chips" id="type-chips">
+      <span class="chip on" data-v="理解性默写">理解性默写</span>
+      <span class="chip" data-v="情境式默写">情境式默写</span>
+      <span class="chip" data-v="名句默写">名句默写</span>
+      <span class="chip" data-v="对比互现(跨篇)">对比互现(跨篇)</span>
+    </div>
+    <div class="bank-hint" id="bank-hint"></div>
+  </div>
+
+  <button class="gen-btn" id="btn-gen">生 成 试 卷</button>
+
+  <div class="section">
+    <label>题 库 管 理</label>
+    <div class="io-row">
+      <span class="chip" id="btn-export">导出题库</span>
+      <span class="chip" id="btn-import">导入题库</span>
+    </div>
+    <div class="io-row">
+      <span class="chip" id="btn-reset">恢复内置题库</span>
+    </div>
+    <input type="file" id="file-input" accept=".json,application/json" style="display:none">
+  </div>
+
+  <div class="ai-box">
+    <label>AI 接口地址（OpenAI 兼容，可选）</label>
+    <input type="text" id="ai-url" placeholder="https://api.openai.com/v1/chat/completions">
+    <label>API Key</label>
+    <input type="password" id="ai-key" placeholder="sk-...">
+    <label>模型</label>
+    <input type="text" id="ai-model" placeholder="gpt-4o-mini / deepseek-chat 等">
+    <div class="ai-status off" id="ai-status"></div>
+    <div class="chips" style="margin-top:10px">
+      <span class="chip" id="btn-save-ai">保存配置</span>
+      <span class="chip" id="btn-test-ai">测试连接</span>
+    </div>
+  </div>
+</aside>
+
+<button class="side-show" id="btn-expand" title="展开左栏（快捷键 S）">☰ 展开左栏</button>
+
+<main>
+  <div class="paper" id="paper">
+    <div class="empty" id="empty">
+      <div class="icon">📖</div>
+      <p>在左侧选择教材与篇目，设置题型和题量<br>点击「生成试卷」——未配置 AI 时使用内置离线题库<br>（内置 51 篇 · 543 题，覆盖必修上下 / 选必上中下，理解性 / 情境 / 名句 / 对比四类题型，已逐题校对）</p>
+    </div>
+  </div>
+</main>
+
+<dialog id="dlg">
+  <h3>编辑题目</h3>
+  <textarea id="dlg-q"></textarea>
+  <div class="hint">提示语中的挖空位置用 <b>{1} {2} {3}</b> 标注，按顺序对应下方答案框；答案每行一句。挖空个数必须与答案条数一致，否则该题会被标黄提醒。</div>
+  <textarea id="dlg-a" style="height:90px"></textarea>
+  <div class="foot">
+    <button id="dlg-cancel">取消</button>
+    <button class="sure" id="dlg-ok">保存</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================================================================
+   教材 & 篇目库（可自行扩充）
+   ================================================================ */
+const LIB = {
+  "人教版 · 高中必修上册": [
+    "梦游天姥吟留别 · 李白", "劝学 · 荀子", "师说 · 韩愈", "赤壁赋 · 苏轼",
+    "短歌行 · 曹操", "登高 · 杜甫", "琵琶行并序 · 白居易",
+    "念奴娇·赤壁怀古 · 苏轼", "永遇乐·京口北固亭怀古 · 辛弃疾",
+    "声声慢 · 李清照", "登泰山记 · 姚鼐"
+  ],
+  "人教版 · 高中必修下册": [
+    "子路、曾皙、冉有、公西华侍坐", "齐桓晋文之事 · 孟子",
+    "庖丁解牛 · 庄子", "烛之武退秦师 · 左传", "鸿门宴 · 司马迁",
+    "谏逐客书 · 李斯", "答司马谏议书 · 王安石", "阿房宫赋 · 杜牧",
+    "六国论 · 苏洵"
+  ],
+  "人教版 · 选择性必修上册": [
+    "<论语>十二章", "大学之道 · 《礼记》", "人皆有不忍人之心 · 孟子",
+    "老子四章", "五石之瓠 · 庄子", "兼爱 · 墨子"
+  ],
+  "人教版 · 选择性必修中册": [
+    "屈原列传 · 司马迁", "苏武传 · 班固", "过秦论 · 贾谊",
+    "五代史伶官传序 · 欧阳修", "燕歌行并序 · 高适",
+    "李凭箜篌引 · 李贺", "锦瑟 · 李商隐", "书愤 · 陆游"
+  ],
+  "人教版 · 选择性必修下册": [
+    "氓 · 《诗经·卫风》", "离骚（节选） · 屈原", "孔雀东南飞并序",
+    "蜀道难 · 李白", "蜀相 · 杜甫", "望海潮 · 柳永", "扬州慢 · 姜夔",
+    "陈情表 · 李密", "项脊轩志 · 归有光", "兰亭集序 · 王羲之",
+    "归去来兮辞并序 · 陶渊明", "种树郭橐驼传 · 柳宗元", "石钟山记 · 苏轼",
+    "拟行路难（其四） · 鲍照", "客至 · 杜甫", "登快阁 · 黄庭坚",
+    "临安春雨初霁 · 陆游"
+  ],
+  "人教版 · 初中（九年级）": [
+    "岳阳楼记 · 范仲淹", "醉翁亭记 · 欧阳修", "湖心亭看雪 · 张岱",
+    "出师表 · 诸葛亮", "鱼我所欲也 · 孟子", "送东阳马生序 · 宋濂",
+    "曹刿论战 · 左传", "邹忌讽齐王纳谏 · 战国策"
+  ],
+  "自定义篇目": []
+};
+
+/* ================================================================
+   内置离线题库（已人工校对）
+   —— 校对说明：
+      1. 每道题的挖空个数 {n} 与答案条数严格一致；
+      2. 已删除原题库中答案完全重复的题目；
+      3. 已修正原题库中"题干描述与答案张冠李戴"的题目；
+      4. 提示语中不再直接出现答案原文（避免泄露）；
+      5. 每题可带 t 字段标注题型；缺省视为「理解性默写」；
+      6. 已增补必修下、选必上、选必中、选必下共 40 篇题库，
+         每篇覆盖理解 / 情境 / 名句 / 对比四类题型；
+      7. 2026-11 优化：全部「理解性默写」题已按高考真题范式重写
+         （情境化 / 跨篇关联 / 画面意境 / 适量开放题）。
+   ================================================================ */
+/* BANK:START */
+const BUILTIN = {
+  "劝学 · 荀子": [
+    {
+      "q": "同学练字三天就想放弃，你想用《劝学》中关于坚持的句子鼓励他：{1}，{2}。",
+      "a": [
+        "锲而不舍",
+        "金石可镂"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "想说明天赋并非决定因素、善于借助外物更重要，可以引用《劝学》中的“{1}，{2}”。",
+      "a": [
+        "君子生非异也",
+        "善假于物也"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "想说明积累要从脚下开始、不能急于求成，可以引用《劝学》中的“{1}，{2}”。",
+      "a": [
+        "故不积跬步",
+        "无以至千里"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "想说明整天空想不如片刻读书学习，可以引用《劝学》中的“{1}，{2}”。",
+      "a": [
+        "吾尝终日而思矣",
+        "不如须臾之所学也"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《师说》强调人并非生来就懂道理、需要从师学习；《劝学》则开篇直接提出学习不能停止，句子是“{1}”。",
+      "a": [
+        "学不可以已"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《论语》主张学思结合，《劝学》则用“整天空想不如片刻学习”强调实践，句子是“{1}，{2}”。",
+      "a": [
+        "吾尝终日而思矣",
+        "不如须臾之所学也"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《赤壁赋》以江水感叹时光流逝，《劝学》则以细流汇江海说明积累，句子是“{1}，{2}”。",
+      "a": [
+        "不积小流",
+        "无以成江海"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《劝学》开篇点明中心论点、强调学习不可停止的句子是“{1}”。",
+      "a": [
+        "学不可以已"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《劝学》中以“青出于蓝”为喻，说明学习可以使人提高并超越原有水平的句子是“{1}，{2}”。",
+      "a": [
+        "青，取之于蓝",
+        "而青于蓝"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《劝学》中“{1}，{2}”两句以水结冰为喻，说明学习可以使人超过原本的状态。",
+      "a": [
+        "冰，水为之",
+        "而寒于水"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《劝学》中紧承“木受绳则直，金就砺则利”，说明君子广泛学习并且每天反省自己，就能见识明达、行为没有过失的句子是“{1}，{2}”。",
+      "a": [
+        "君子博学而日参省乎己",
+        "则知明而行无过矣"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《劝学》中强调整天空想不如片刻学习的句子是“{1}，{2}”。",
+      "a": [
+        "吾尝终日而思矣",
+        "不如须臾之所学也"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《劝学》中点明君子的天资与常人并无不同、只是善于借助外物的句子是“{1}，{2}”。",
+      "a": [
+        "君子生非异也",
+        "善假于物也"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "新学期主题班会上，班主任以荀子《劝学》开篇的观点强调：学习是终身的事业，不可以停止。请写出这句话：{1}。",
+      "a": [
+        "学不可以已"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "化学课上，老师讲到靛青这种染料虽然从蓝草中提取，颜色却比蓝草更深。有同学由此联想到《劝学》中的两句：{1}，{2}。",
+      "a": [
+        "青，取之于蓝",
+        "而青于蓝"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "冰由水凝结而成，却比水更寒冷。《劝学》中借这一生活现象说明后天学习可以让人超越本性的两句是：{1}，{2}。",
+      "a": [
+        "冰，水为之",
+        "而寒于水"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "木工坊里，师傅指着经过烘烤矫正的弯木说，它不再挺直，是因为外力使它弯曲成这样的。《劝学》中说明这一道理的两句是：{1}，{2}。",
+      "a": [
+        "虽有槁暴，不复挺者",
+        "輮使之然也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“每日自省”晨会上，主持人引用《劝学》中“君子广泛学习并每天反省自己，就能智慧明达、行为没有过错”的句子：{1}，{2}。",
+      "a": [
+        "君子博学而日参省乎己",
+        "则知明而行无过矣"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "老师用“木材经墨线加工就变直，金属在磨刀石上磨过就锋利”来比喻学习对人的塑造作用。《劝学》中与此对应的两句是：{1}，{2}。",
+      "a": [
+        "木受绳则直",
+        "金就砺则利"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "小明整日冥思苦想却收效甚微，老师劝他改用《劝学》中“整日空想不如片刻学习”的两句来调整方法：{1}，{2}。",
+      "a": [
+        "吾尝终日而思矣",
+        "不如须臾之所学也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "登高远眺时，小李想起《劝学》中“踮起脚跟远望，不如登上高处看得广阔”的两句：{1}，{2}。",
+      "a": [
+        "吾尝跂而望矣",
+        "不如登高之博见也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "科学课上，老师讲解声波传播，说顺风呼喊时，声音本身并没有加大，但听的人却听得更清楚。《劝学》中与此相关的三句是：{1}，{2}，{3}。",
+      "a": [
+        "顺风而呼",
+        "声非加疾也",
+        "而闻者彰"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“善于借助外物”的讨论中，有同学说：擅长奔跑的人驾车骑马，也能到达千里之外。《劝学》中阐明这一道理的三句是：{1}，{2}，{3}。",
+      "a": [
+        "假舆马者",
+        "非利足也",
+        "而致千里"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "还有同学补充说：水性不好的人，借助舟船也能横渡江河。《劝学》中与此对应的三句是：{1}，{2}，{3}。",
+      "a": [
+        "假舟楫者",
+        "非能水也",
+        "而绝江河"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "荀子列举大量事例后总结：君子的本性与常人并无不同，只是善于借助外物罢了。请写出《劝学》中这两句：{1}，{2}。",
+      "a": [
+        "君子生非异也",
+        "善假于物也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“积累的力量”演讲中，选手引用《劝学》中“土石堆积起来能成为高山，风雨就从那里兴起；水流汇聚起来能成为深渊，蛟龙就在那里生长”的句子来说明积累的重要：{1}，{2}，{3}，{4}。",
+      "a": [
+        "积土成山",
+        "风雨兴焉",
+        "积水成渊",
+        "蛟龙生焉"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在品德养成主题班会上，班长引用《劝学》中“积累善行养成品德，就能心智澄明，具备圣人的心怀”的句子：{1}，{2}，{3}。",
+      "a": [
+        "积善成德",
+        "而神明自得",
+        "圣心备焉"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "“千里之行，始于足下。”《劝学》中从反面告诫：没有半步一步的积累，就无法到达千里之外；不积累细小的水流，就无法汇成江海。请写出这四句：{1}，{2}，{3}，{4}。",
+      "a": [
+        "故不积跬步",
+        "无以至千里",
+        "不积小流",
+        "无以成江海"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“坚持不懈”主题班会上，主持人引用《劝学》中“不停地雕刻，金属和石头也能雕刻成功”的两句来鼓励大家：{1}，{2}。",
+      "a": [
+        "锲而不舍",
+        "金石可镂"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "梦游天姥吟留别 · 李白": [
+    {
+      "q": "当你想表达不愿屈身事奉达官贵人、要保持人格尊严时，可引用《梦游天姥吟留别》中的“{1}，{2}”。",
+      "a": [
+        "安能摧眉折腰事权贵",
+        "使我不得开心颜"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "当你想表达寄情山水、说走就走的心愿时，可引用《梦游天姥吟留别》中的“{1}，{2}”。",
+      "a": [
+        "且放白鹿青崖间",
+        "须行即骑访名山"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "描写众仙服饰奇特、乘风云而降的奇幻场面，可用《梦游天姥吟留别》中的“{1}，{2}”。",
+      "a": [
+        "霓为衣兮风为马",
+        "云之君兮纷纷而来下"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "描写山路曲折、沉迷花草而不知不觉天色已晚，可用《梦游天姥吟留别》中的“{1}，{2}”。",
+      "a": [
+        "千岩万转路不定",
+        "迷花倚石忽已暝"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《念奴娇·赤壁怀古》以“人生如梦”收束，《梦游天姥吟留别》也以梦醒后的感慨写世事无常，句子是“{1}，{2}”。",
+      "a": [
+        "世间行乐亦如此",
+        "古来万事东流水"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《赤壁赋》写泛舟如“遗世独立，羽化而登仙”，《梦游天姥吟留别》则直接描绘众仙降临的场面：“{1}，{2}”。",
+      "a": [
+        "霓为衣兮风为马",
+        "云之君兮纷纷而来下"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《梦游天姥吟留别》中运用夸张和衬托、极写天姥山高峻的句子是“{1}，{2}”。",
+      "a": [
+        "天姥连天向天横",
+        "势拔五岳掩赤城"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《梦游天姥吟留别》中描写天气环境变化、为仙人出场作铺垫的句子是“{1}，{2}”。",
+      "a": [
+        "云青青兮欲雨",
+        "水澹澹兮生烟"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《梦游天姥吟留别》中写电闪雷鸣、山峦崩摧之后仙府石门打开的句子是“{1}，{2}”。",
+      "a": [
+        "洞天石扉",
+        "訇然中开"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《梦游天姥吟留别》中写梦境破灭、诗人惊起长叹的句子是“{1}，{2}”。",
+      "a": [
+        "忽魂悸以魄动",
+        "恍惊起而长嗟"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《梦游天姥吟留别》中直抒胸臆、表现蔑视达官贵人和不屈态度的句子是“{1}，{2}”。",
+      "a": [
+        "安能摧眉折腰事权贵",
+        "使我不得开心颜"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "学校组织“浙东唐诗之路”研学活动，同学们来到天台山下，导游说诗仙曾以这座名山为衬托来写天姥山之高。大家会心一笑，齐声背出《梦游天姥吟留别》中的两句：{1}，{2}。",
+      "a": [
+        "天台四万八千丈",
+        "对此欲倒东南倾"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在梦境中，李白月夜渡过镜湖，来到谢灵运当年游宿之处，只见碧水荡漾，耳边传来清亮的猿啼。请写出《梦游天姥吟留别》中与此画面相契合的两句：{1}，{2}。",
+      "a": [
+        "谢公宿处今尚在",
+        "渌水荡漾清猿啼"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "影视组为《梦游天姥吟留别》设计仙山音效：山岩间泉水轰鸣，如熊在咆哮、龙在长吟，深林和层巅都为之战栗。请写出可作这一音效依据的两句：{1}，{2}。",
+      "a": [
+        "熊咆龙吟殷岩泉",
+        "栗深林兮惊层巅"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "动漫社要绘制诗中仙人降临的场景，你建议采用“仙人以彩虹为衣、乘风为马，纷纷自天而降”的画面作分镜。请写出《梦游天姥吟留别》中与此画面对应的两句：{1}，{2}。",
+      "a": [
+        "霓为衣兮风为马",
+        "云之君兮纷纷而来下"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "李白从梦中惊醒，心中惊悸，恍然起身，发出长长的叹息。请写出《梦游天姥吟留别》中表现诗人梦醒瞬间的两句：{1}，{2}。",
+      "a": [
+        "忽魂悸以魄动",
+        "恍惊起而长嗟"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“珍惜当下”主题班会上，有同学引用李白《梦游天姥吟留别》中“世间万事如东流之水”的两句来劝勉大家：{1}，{2}。",
+      "a": [
+        "世间行乐亦如此",
+        "古来万事东流水"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "李白不肯低头弯腰侍奉权贵，不愿违背本心、让自己不得快意。请写出《梦游天姥吟留别》中表现诗人这一傲骨的两句：{1}，{2}。",
+      "a": [
+        "安能摧眉折腰事权贵",
+        "使我不得开心颜"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "李白因越人讲述天姥山的奇景而向往不已，于是在梦中一夜飞渡镜湖。请写出《梦游天姥吟留别》中表现这一浪漫梦境的句子：{1}，{2}。",
+      "a": [
+        "我欲因之梦吴越",
+        "一夜飞度镜湖月"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "师说 · 韩愈": [
+    {
+      "q": "同学因为对方年纪小不好意思请教，你可以用《师说》中的“{1}，{2}，{3}，{4}”劝他。",
+      "a": [
+        "无贵无贱",
+        "无长无少",
+        "道之所存",
+        "师之所存也"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "有人嘲笑你向某方面不如自己的人学习，你可以用《师说》中的“{1}，{2}”回应。",
+      "a": [
+        "闻道有先后",
+        "术业有专攻"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "老师鼓励学生大胆超过自己时，可以引用《师说》中的“{1}，{2}”。",
+      "a": [
+        "弟子不必不如师",
+        "师不必贤于弟子"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "感叹当今从师学习的风尚失传已久，可以引用《师说》中的“{1}”。",
+      "a": [
+        "师道之不传也久矣"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《劝学》用“青，取之于蓝，而青于蓝”说明后来者可以超越，《师说》中表达同样意思的句子是“{1}，{2}”。",
+      "a": [
+        "弟子不必不如师",
+        "师不必贤于弟子"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《论语》中有“三人行，必有我师焉”，《师说》中引用并表述为“{1}”。",
+      "a": [
+        "三人行，则必有我师"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《劝学》强调学习不能停止，《师说》则从反面说明有了疑惑却不从师就永远不能解惑，句子是“{1}，{2}”。",
+      "a": [
+        "惑而不从师",
+        "其为惑也，终不解矣"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《师说》开篇提出中心论点、指出古代求学的人一定有老师的句子是“{1}”。",
+      "a": [
+        "古之学者必有师"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《师说》中概括教师职责的句子是“{1}”。",
+      "a": [
+        "师者，所以传道受业解惑也"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《师说》中提出弟子不一定不如老师、老师不一定比弟子贤能的句子是“{1}，{2}”。",
+      "a": [
+        "弟子不必不如师",
+        "师不必贤于弟子"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《师说》中说明懂得道理有先后、学问技艺各有专长的句子是“{1}，{2}”。",
+      "a": [
+        "闻道有先后",
+        "术业有专攻"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《师说》中引用孔子的话、说明几个人同行就一定有可师之人的句子是“{1}”。",
+      "a": [
+        "三人行，则必有我师"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "教师节这天，学生在贺卡上引用韩愈《师说》中“学生不一定不如老师，老师不一定比学生贤能”的两句，表达对教学相长的理解：{1}，{2}。",
+      "a": [
+        "弟子不必不如师",
+        "师不必贤于弟子"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“择师标准”讨论中，有同学引用《师说》中“无论身份贵贱、年龄大小，道理所在之处，就是老师所在之处”的句子：{1}，{2}，{3}，{4}。",
+      "a": [
+        "无贵无贱",
+        "无长无少",
+        "道之所存",
+        "师之所存也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "爷爷给初学编程的孙女写信，引用《师说》中“懂得道理有先后，学术技艺各有专门研究”两句，鼓励她虚心向年轻的同事请教：{1}，{2}。",
+      "a": [
+        "闻道有先后",
+        "术业有专攻"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "韩愈在《师说》中引述孔子的话，说明只要愿意学习，同行的人中就有自己的老师。请写出《师说》中引用的这句话：{1}。",
+      "a": [
+        "三人行，则必有我师"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "孩子问妈妈：“我天生就什么都会吗？”妈妈用《师说》中“人不是生下来就懂得道理的，谁能没有疑惑”两句来回答：{1}，{2}。",
+      "a": [
+        "人非生而知之者",
+        "孰能无惑"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“尊师重道”演讲中，选手强调老师的职责在于传授道理、教授学业、解答疑惑，引用了《师说》中的句子：{1}。",
+      "a": [
+        "师者，所以传道受业解惑也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“正视疑惑”的读书交流会上，有同学引用《师说》中“有了疑惑却不向老师请教，那些疑惑就始终不能解决”的句子：{1}，{2}。",
+      "a": [
+        "惑而不从师",
+        "其为惑也，终不解矣"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "赤壁赋 · 苏轼": [
+    {
+      "q": "夜游江上，看到白茫茫的雾气笼罩江面、水光与天相接，可以引用《赤壁赋》中的“{1}，{2}”。",
+      "a": [
+        "白露横江",
+        "水光接天"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "感叹个人在天地间如朝生暮死的小虫般渺小，可以引用《赤壁赋》中的“{1}，{2}”。",
+      "a": [
+        "寄蜉蝣于天地",
+        "渺沧海之一粟"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "劝朋友换一个角度看问题、相信物我都能永恒，可以引用《赤壁赋》中的“{1}，{2}”。",
+      "a": [
+        "自其不变者而观之",
+        "则物与我皆无尽也"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "想表达大自然有无穷无尽的馈赠、可以尽情享用，可以引用《赤壁赋》中的“{1}，{2}”。",
+      "a": [
+        "取之无禁",
+        "用之不竭"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《念奴娇·赤壁怀古》以“人生如梦”收束，《赤壁赋》则从不变的角度自我开解，句子是“{1}，{2}”。",
+      "a": [
+        "自其不变者而观之",
+        "则物与我皆无尽也"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《短歌行》感叹“人生几何”，《赤壁赋》也感叹生命短暂、羡慕长江无穷，句子是“{1}，{2}”。",
+      "a": [
+        "哀吾生之须臾",
+        "羡长江之无穷"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《登高》写落叶无边、长江不尽，《赤壁赋》则以小虫和大海比喻人生短暂、个体渺小，句子是“{1}，{2}”。",
+      "a": [
+        "寄蜉蝣于天地",
+        "渺沧海之一粟"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《赤壁赋》中写微风缓缓吹来、江面波澜不起的句子是“{1}，{2}”。",
+      "a": [
+        "清风徐来",
+        "水波不兴"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《赤壁赋》中写白茫茫的雾气笼罩江面、水光与天相接的句子是“{1}，{2}”。",
+      "a": [
+        "白露横江",
+        "水光接天"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《赤壁赋》中感叹人生短暂如朝生暮死的小虫、个体渺小如大海一粟的句子是“{1}，{2}”。",
+      "a": [
+        "寄蜉蝣于天地",
+        "渺沧海之一粟"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《赤壁赋》中感叹生命短暂、羡慕长江无穷的句子是“{1}，{2}”。",
+      "a": [
+        "哀吾生之须臾",
+        "羡长江之无穷"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《赤壁赋》中写只有自然界的清风明月可以尽情享用的句子是“{1}，{2}”。",
+      "a": [
+        "惟江上之清风",
+        "与山间之明月"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "中秋夜游江上，清风轻轻吹来，江面上水波平静。请写出《赤壁赋》中描写这一开篇画面的两句：{1}，{2}。",
+      "a": [
+        "清风徐来",
+        "水波不兴"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在江边露营的傍晚，看月亮从东山升起，在斗宿与牛宿之间徘徊。《赤壁赋》中与此画面相契合的两句是：{1}，{2}。",
+      "a": [
+        "月出于东山之上",
+        "徘徊于斗牛之间"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "雾夜泛舟，白露弥漫江面，水光与天色相接。《赤壁赋》中写出这种水天一色画面的两句是：{1}，{2}。",
+      "a": [
+        "白露横江",
+        "水光接天"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "一叶扁舟在江上随水漂流，越过茫茫无际的万顷江面。《赤壁赋》中表现这种自由飘荡画面的两句是：{1}，{2}。",
+      "a": [
+        "纵一苇之所如",
+        "凌万顷之茫然"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“古典音乐描写”专题中，同学们提到《赤壁赋》中箫声能使深谷里的蛟龙起舞、使孤舟上的寡妇落泪。请写出这两句：{1}，{2}。",
+      "a": [
+        "舞幽壑之潜蛟",
+        "泣孤舟之嫠妇"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "面对奔流不息的长江，苏轼感叹人生短暂，羡慕江水长流无尽。请写出《赤壁赋》中这两句：{1}，{2}。",
+      "a": [
+        "哀吾生之须臾",
+        "羡长江之无穷"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "苏轼认为，天地之间万物各有主宰，只有江上的清风与山间的明月可以自由享用。请写出《赤壁赋》中这两句：{1}，{2}。",
+      "a": [
+        "惟江上之清风",
+        "与山间之明月"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "短歌行 · 曹操": [
+    {
+      "q": "感叹人生短促、应珍惜当下时，可以引用《短歌行》中的“{1}，{2}”。",
+      "a": [
+        "譬如朝露",
+        "去日苦多"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "表达对贤才的思念和渴望时，可以引用《短歌行》中的“{1}，{2}”。",
+      "a": [
+        "青青子衿",
+        "悠悠我心"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "表达广纳贤才、不拘一格的胸怀时，可以引用《短歌行》中的“{1}，{2}”。",
+      "a": [
+        "山不厌高",
+        "海不厌深"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "表达招揽天下贤才、成就大业的雄心时，可以引用《短歌行》中的“{1}，{2}”。",
+      "a": [
+        "周公吐哺",
+        "天下归心"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《赤壁赋》感叹“哀吾生之须臾”，《短歌行》也以酒起兴感叹人生短促，句子是“{1}，{2}”。",
+      "a": [
+        "对酒当歌",
+        "人生几何"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《永遇乐·京口北固亭怀古》感叹英雄难觅，《短歌行》则以周公自比表达建功立业的雄心，句子是“{1}，{2}”。",
+      "a": [
+        "周公吐哺",
+        "天下归心"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《短歌行》中写面对美酒应当高歌、感叹人生短促的句子是“{1}，{2}”。",
+      "a": [
+        "对酒当歌",
+        "人生几何"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《短歌行》中把人生比作晨露、感叹逝去日子太多的句子是“{1}，{2}”。",
+      "a": [
+        "譬如朝露",
+        "去日苦多"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《短歌行》中借用《诗经》成句、表达对贤才思念的句子是“{1}，{2}”。",
+      "a": [
+        "青青子衿",
+        "悠悠我心"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《短歌行》中写月光明亮、乌鹊向南飞去的句子是“{1}，{2}”。",
+      "a": [
+        "月明星稀",
+        "乌鹊南飞"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《短歌行》中以周公自比、表达招揽天下贤才雄心的句子是“{1}，{2}”。",
+      "a": [
+        "周公吐哺",
+        "天下归心"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "朋友聚会时，有人感叹人生短暂，就像早晨的露水，逝去的日子已经太多。《短歌行》中表达这一感慨的两句是：{1}，{2}。",
+      "a": [
+        "譬如朝露",
+        "去日苦多"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "曹操在《短歌行》中化用《诗经·郑风》里以“青青”形容衣领、表达思慕之情的诗句，来抒发对贤才的深切思念。请写出《短歌行》中化用而来的两句：{1}，{2}。",
+      "a": [
+        "青青子衿",
+        "悠悠我心"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "夜深人静，曹操仰望明月，以“明月何时才能摘取”来比喻贤才何时可得。请写出《短歌行》中表达这一渴望的两句：{1}，{2}。",
+      "a": [
+        "明明如月",
+        "何时可掇"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在清冷的秋夜，曹操看到向南飞去的乌鹊，以此点染苍凉氛围，衬托贤才的彷徨。请写出《短歌行》中描绘这一画面的两句：{1}，{2}。",
+      "a": [
+        "月明星稀",
+        "乌鹊南飞"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“人才兴国”主题班会上，主持人引用曹操借周公“一饭三吐哺”的典故表达天下英才归附之愿的句子：{1}，{2}。",
+      "a": [
+        "周公吐哺",
+        "天下归心"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "登高 · 杜甫": [
+    {
+      "q": "秋日登高，看到落叶纷飞、江水奔涌，想表达时光流逝、自然永恒，可以引用《登高》中的“{1}，{2}”。",
+      "a": [
+        "无边落木萧萧下",
+        "不尽长江滚滚来"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "长期漂泊在外、年老多病时，想表达孤独凄凉，可以引用《登高》中的“{1}，{2}”。",
+      "a": [
+        "万里悲秋常作客",
+        "百年多病独登台"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "生活困顿、因病不得不放下酒杯时，可以引用《登高》中的“{1}”。",
+      "a": [
+        "潦倒新停浊酒杯"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《声声慢》以“这次第，怎一个愁字了得”收束，《登高》也写秋日羁旅之愁，句子是“{1}，{2}”。",
+      "a": [
+        "万里悲秋常作客",
+        "百年多病独登台"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《念奴娇·赤壁怀古》感叹“早生华发”，《登高》也写年老愁苦使白发增多，句子是“{1}”。",
+      "a": [
+        "艰难苦恨繁霜鬓"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《登高》首联写秋风急、天空高远、猿声哀切和水清沙白、鸟儿盘旋的句子是“{1}，{2}”。",
+      "a": [
+        "风急天高猿啸哀",
+        "渚清沙白鸟飞回"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《登高》颔联写无边落叶萧萧而下、不尽长江滚滚而来的句子是“{1}，{2}”。",
+      "a": [
+        "无边落木萧萧下",
+        "不尽长江滚滚来"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《登高》颈联写诗人漂泊异乡、年老多病、独自登台的句子是“{1}，{2}”。",
+      "a": [
+        "万里悲秋常作客",
+        "百年多病独登台"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《登高》尾联写时局艰难、个人愁苦使白发增多，以及因病停酒的句子是“{1}，{2}”。",
+      "a": [
+        "艰难苦恨繁霜鬓",
+        "潦倒新停浊酒杯"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "重阳登高，只见秋风劲急，天空高远，猿声哀啸，水清沙白，鸟儿盘旋。《登高》开篇的两句是：{1}，{2}。",
+      "a": [
+        "风急天高猿啸哀",
+        "渚清沙白鸟飞回"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "站在江边高台，看无边无际的落叶萧萧飘落，奔流不息的长江滚滚而来。《登高》中与此画面相契合的两句是：{1}，{2}。",
+      "a": [
+        "无边落木萧萧下",
+        "不尽长江滚滚来"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "杜甫晚年漂泊异乡，重阳节独自登台，心中满是离乡万里、悲秋作客、年老多病的感慨。《登高》中写出这双重身世之悲的两句是：{1}，{2}。",
+      "a": [
+        "万里悲秋常作客",
+        "百年多病独登台"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“杜甫诗歌中的家国情怀”分享会上，有同学提到杜甫晚年因病戒酒，艰难苦恨使他两鬓斑白。《登高》中写这一境况的两句是：{1}，{2}。",
+      "a": [
+        "艰难苦恨繁霜鬓",
+        "潦倒新停浊酒杯"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "琵琶行并序 · 白居易": [
+    {
+      "q": "形容女子羞怯、迟迟不肯露面，可以引用《琵琶行》中的“{1}，{2}”。",
+      "a": [
+        "千呼万唤始出来",
+        "犹抱琵琶半遮面"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "形容音乐时而高亢急促、时而轻柔细密，可以引用《琵琶行》中的“{1}，{2}”。",
+      "a": [
+        "大弦嘈嘈如急雨",
+        "小弦切切如私语"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "形容音乐虽暂时停止、情感却更加深沉，可以引用《琵琶行》中的“{1}，{2}”。",
+      "a": [
+        "别有幽愁暗恨生",
+        "此时无声胜有声"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "形容同病相怜、彼此不必曾经相识，可以引用《琵琶行》中的“{1}，{2}”。",
+      "a": [
+        "同是天涯沦落人",
+        "相逢何必曾相识"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《赤壁赋》写箫声“如怨如慕，如泣如诉”，《琵琶行》也用莺语泉流描摹乐声，句子是“{1}，{2}”。",
+      "a": [
+        "间关莺语花底滑",
+        "幽咽泉流冰下难"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《声声慢》写秋日凄凉，《琵琶行》开篇也以枫叶荻花渲染秋意，句子是“{1}，{2}”。",
+      "a": [
+        "浔阳江头夜送客",
+        "枫叶荻花秋瑟瑟"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《琵琶行》中写琵琶女千呼万唤才出来、还抱着琵琶遮住半张脸的句子是“{1}，{2}”。",
+      "a": [
+        "千呼万唤始出来",
+        "犹抱琵琶半遮面"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《琵琶行》中用急雨和私语比喻大弦小弦声音的句子是“{1}，{2}”。",
+      "a": [
+        "大弦嘈嘈如急雨",
+        "小弦切切如私语"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《琵琶行》中写乐声暂歇、却更显幽愁暗恨的句子是“{1}，{2}”。",
+      "a": [
+        "别有幽愁暗恨生",
+        "此时无声胜有声"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《琵琶行》中写同病相怜、相遇不必曾经相识的句子是“{1}，{2}”。",
+      "a": [
+        "同是天涯沦落人",
+        "相逢何必曾相识"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《琵琶行》中写座中流泪最多的是江州司马、泪水湿透青衫的句子是“{1}，{2}”。",
+      "a": [
+        "座中泣下谁最多",
+        "江州司马青衫湿"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "深秋的夜晚，白居易在浔阳江头送别友人，枫叶与荻花在秋风中瑟瑟作响。《琵琶行》开篇的两句是：{1}，{2}。",
+      "a": [
+        "浔阳江头夜送客",
+        "枫叶荻花秋瑟瑟"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "琵琶女在众人一再呼唤下才出来相见，出来时还抱着琵琶遮住半边脸。《琵琶行》中写这一情态的两句是：{1}，{2}。",
+      "a": [
+        "千呼万唤始出来",
+        "犹抱琵琶半遮面"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "音乐课上，老师让同学们想象琵琶声如急雨倾泻、如情人低声细语。《琵琶行》中分别描写大弦、小弦音色的两句是：{1}，{2}。",
+      "a": [
+        "大弦嘈嘈如急雨",
+        "小弦切切如私语"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "琵琶女弹奏时，清脆与圆润的声音交错响起，像大大小小的珍珠落入玉盘。《琵琶行》中描写这一音乐效果的两句是：{1}，{2}。",
+      "a": [
+        "嘈嘈切切错杂弹",
+        "大珠小珠落玉盘"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“留白”艺术讨论中，有同学说音乐中短暂的停顿有时比有声更扣人心弦。《琵琶行》中表现这种“此时无声”境界的两句是：{1}，{2}。",
+      "a": [
+        "别有幽愁暗恨生",
+        "此时无声胜有声"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "一曲终了，琵琶女用拨子在琵琶中心划过，四弦齐鸣，声音如撕裂丝绸。《琵琶行》中写曲终收拨的两句是：{1}，{2}。",
+      "a": [
+        "曲终收拨当心画",
+        "四弦一声如裂帛"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "曲罢，四周的船只都静悄悄的，只见江心映着一轮秋月。《琵琶行》中描写这“余音绕梁”画面的两句是：{1}，{2}。",
+      "a": [
+        "东船西舫悄无言",
+        "唯见江心秋月白"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“知音”主题班会上，有同学引用《琵琶行》中白居易与琵琶女身世相仿、不必相识也能相知的两句：{1}，{2}。",
+      "a": [
+        "同是天涯沦落人",
+        "相逢何必曾相识"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "念奴娇·赤壁怀古 · 苏轼": [
+    {
+      "q": "站在长江边怀古，感叹历史人物随江水逝去，可以引用《念奴娇·赤壁怀古》中的“{1}，{2}，{3}”。",
+      "a": [
+        "大江东去",
+        "浪淘尽",
+        "千古风流人物"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "描写赤壁险峻壮阔的景象，可以引用《念奴娇·赤壁怀古》中的“{1}，{2}，{3}”。",
+      "a": [
+        "乱石穿空",
+        "惊涛拍岸",
+        "卷起千堆雪"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "形容儒将从容不迫、轻松破敌，可以引用《念奴娇·赤壁怀古》中的“{1}，{2}，{3}”。",
+      "a": [
+        "羽扇纶巾",
+        "谈笑间",
+        "樯橹灰飞烟灭"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "感叹人生虚幻如梦、举杯祭月，可以引用《念奴娇·赤壁怀古》中的“{1}，{2}”。",
+      "a": [
+        "人生如梦",
+        "一尊还酹江月"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《赤壁赋》与《念奴娇·赤壁怀古》同写赤壁，词中开篇感叹历史人物随江水逝去的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "大江东去",
+        "浪淘尽",
+        "千古风流人物"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《永遇乐·京口北固亭怀古》感叹英雄难觅，《念奴娇·赤壁怀古》也赞叹江山美如图画、豪杰辈出，句子是“{1}，{2}”。",
+      "a": [
+        "江山如画",
+        "一时多少豪杰"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《登高》写“艰难苦恨繁霜鬓”，《念奴娇·赤壁怀古》也自嘲年老，句子是“{1}，{2}”。",
+      "a": [
+        "多情应笑我",
+        "早生华发"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《念奴娇·赤壁怀古》开篇写大江奔流、浪花淘尽千古英雄的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "大江东去",
+        "浪淘尽",
+        "千古风流人物"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《念奴娇·赤壁怀古》中写陡峭山石刺破天空、惊涛拍击江岸、卷起层层雪白浪花的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "乱石穿空",
+        "惊涛拍岸",
+        "卷起千堆雪"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《念奴娇·赤壁怀古》中赞叹江山美如图画、一时涌现多少豪杰的句子是“{1}，{2}”。",
+      "a": [
+        "江山如画",
+        "一时多少豪杰"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《念奴娇·赤壁怀古》中写周瑜手摇羽扇、头戴纶巾，在从容谈笑之间消灭强敌的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "羽扇纶巾",
+        "谈笑间",
+        "樯橹灰飞烟灭"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《念奴娇·赤壁怀古》中感叹人生虚幻、举杯祭月的句子是“{1}，{2}”。",
+      "a": [
+        "人生如梦",
+        "一尊还酹江月"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "站在长江边，看滚滚江水向东流去，浪花仿佛淘尽了千古的英雄人物。《念奴娇·赤壁怀古》开篇的三句是：{1}，{2}，{3}。",
+      "a": [
+        "大江东去",
+        "浪淘尽",
+        "千古风流人物"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "赤壁矶头，乱石高耸入云，惊涛拍打江岸，卷起千万堆白雪似的浪花。《念奴娇·赤壁怀古》中描写赤壁壮景的三句是：{1}，{2}，{3}。",
+      "a": [
+        "乱石穿空",
+        "惊涛拍岸",
+        "卷起千堆雪"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“三国人物”故事会上，主持人讲到赤壁之战时的周瑜正值新婚、英姿勃发，请大家背出苏轼笔下刻画周瑜这一形象的两句：{1}，{2}。",
+      "a": [
+        "小乔初嫁了",
+        "雄姿英发"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "周瑜手摇羽扇、头戴纶巾，在谈笑之间，曹军的战船便化为灰烬。《念奴娇·赤壁怀古》中写周瑜从容破敌的三句是：{1}，{2}，{3}。",
+      "a": [
+        "羽扇纶巾",
+        "谈笑间",
+        "樯橹灰飞烟灭"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "苏轼感叹人生如一场梦，举起酒杯，祭奠江中明月。《念奴娇·赤壁怀古》结尾的两句是：{1}，{2}。",
+      "a": [
+        "人生如梦",
+        "一尊还酹江月"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "永遇乐·京口北固亭怀古 · 辛弃疾": [
+    {
+      "q": "感叹英雄人物随历史消逝、江山依旧而人事全非，可以引用《永遇乐·京口北固亭怀古》中的“{1}，{2}，{3}”。",
+      "a": [
+        "千古江山",
+        "英雄无觅",
+        "孙仲谋处"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "形容军队雄壮、气势如虎，可以引用《永遇乐·京口北固亭怀古》中的“{1}，{2}”。",
+      "a": [
+        "金戈铁马",
+        "气吞万里如虎"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "回忆过去抗金的烽火岁月，可以引用《永遇乐·京口北固亭怀古》中的“{1}，{2}，{3}”。",
+      "a": [
+        "四十三年",
+        "望中犹记",
+        "烽火扬州路"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "表达自己虽年老仍愿报国、却无人过问的感慨，可以引用《永遇乐·京口北固亭怀古》中的“{1}，{2}，{3}”。",
+      "a": [
+        "凭谁问",
+        "廉颇老矣",
+        "尚能饭否"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《念奴娇·赤壁怀古》与《永遇乐·京口北固亭怀古》都怀古，《永遇乐》开篇感叹英雄难觅的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "千古江山",
+        "英雄无觅",
+        "孙仲谋处"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《赤壁赋》写曹操军队“舳舻千里，旌旗蔽空”，《永遇乐·京口北固亭怀古》也写军队雄壮，句子是“{1}，{2}”。",
+      "a": [
+        "金戈铁马",
+        "气吞万里如虎"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《永遇乐·京口北固亭怀古》开篇写江山依旧、却再也找不到孙权那样的英雄的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "千古江山",
+        "英雄无觅",
+        "孙仲谋处"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《永遇乐·京口北固亭怀古》中写昔日歌舞楼台和英雄风流都被风雨吹打而去的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "舞榭歌台",
+        "风流总被",
+        "雨打风吹去"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《永遇乐·京口北固亭怀古》中写刘裕当年兵强马壮、气势如虎的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "想当年",
+        "金戈铁马",
+        "气吞万里如虎"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《永遇乐·京口北固亭怀古》中写多年过去、仍记得当年扬州一带烽火的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "四十三年",
+        "望中犹记",
+        "烽火扬州路"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《永遇乐·京口北固亭怀古》中借廉颇自比、感叹自己年老还能否被任用的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "凭谁问",
+        "廉颇老矣",
+        "尚能饭否"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "登上北固亭，辛弃疾想起三国时的孙权，可惜如今已无处寻觅这位英雄的踪迹。《永遇乐·京口北固亭怀古》中写江山依旧、英雄难觅的三句是：{1}，{2}，{3}。",
+      "a": [
+        "千古江山",
+        "英雄无觅",
+        "孙仲谋处"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "夕阳斜照草木，在寻常的街巷里，人们说南朝宋武帝刘裕曾在这里居住。《永遇乐·京口北固亭怀古》中写刘裕故居的三句是：{1}，{2}，{3}。",
+      "a": [
+        "斜阳草树",
+        "寻常巷陌",
+        "人道寄奴曾住"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "回顾往昔，刘裕率军北伐，兵强马壮，气势如猛虎般要吞掉万里之敌。《永遇乐·京口北固亭怀古》中写刘裕北伐雄姿的三句是：{1}，{2}，{3}。",
+      "a": [
+        "想当年",
+        "金戈铁马",
+        "气吞万里如虎"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "辛弃疾借南朝宋文帝草率北伐、落得仓皇南顾的史实，劝诫当权者不可轻敌冒进。《永遇乐·京口北固亭怀古》中这三句是：{1}，{2}，{3}。",
+      "a": [
+        "元嘉草草",
+        "封狼居胥",
+        "赢得仓皇北顾"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“老当益壮”主题班会上，有同学引用辛弃疾以廉颇自比、渴望为国效力的句子：{1}，{2}，{3}。",
+      "a": [
+        "凭谁问",
+        "廉颇老矣",
+        "尚能饭否"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "声声慢 · 李清照": [
+    {
+      "q": "形容空虚失落、四处寻找却一无所获，可以引用《声声慢》中的“{1}，{2}，{3}”。",
+      "a": [
+        "寻寻觅觅",
+        "冷冷清清",
+        "凄凄惨惨戚戚"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "形容秋天天气忽冷忽热、难以适应，可以引用《声声慢》中的“{1}，{2}”。",
+      "a": [
+        "乍暖还寒时候",
+        "最难将息"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "形容黄昏细雨打在梧桐上的凄凉，可以引用《声声慢》中的“{1}，{2}”。",
+      "a": [
+        "梧桐更兼细雨",
+        "到黄昏、点点滴滴"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "形容愁绪复杂、无法用一个字概括，可以引用《声声慢》中的“{1}，{2}”。",
+      "a": [
+        "这次第",
+        "怎一个愁字了得"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《登高》写“万里悲秋常作客”，《声声慢》也以秋景写愁，结尾说愁绪难以言尽，句子是“{1}，{2}”。",
+      "a": [
+        "这次第",
+        "怎一个愁字了得"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《琵琶行》开篇以枫叶荻花写秋意，《声声慢》也写黄昏细雨梧桐的凄凉，句子是“{1}，{2}”。",
+      "a": [
+        "梧桐更兼细雨",
+        "到黄昏、点点滴滴"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《声声慢》开篇连用叠字、写诗人四处寻觅和凄凉心境的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "寻寻觅觅",
+        "冷冷清清",
+        "凄凄惨惨戚戚"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《声声慢》中写几杯淡酒抵挡不住傍晚急风的句子是“{1}，{2}”。",
+      "a": [
+        "三杯两盏淡酒",
+        "怎敌他、晚来风急"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《声声慢》中写大雁飞过、正令人伤心、原来是从前见过的旧相识的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "雁过也",
+        "正伤心",
+        "却是旧时相识"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《声声慢》中写梧桐细雨到黄昏点点滴滴的句子是“{1}，{2}”。",
+      "a": [
+        "梧桐更兼细雨",
+        "到黄昏、点点滴滴"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《声声慢》中写愁绪复杂、一个愁字难以概括的句子是“{1}，{2}”。",
+      "a": [
+        "这次第",
+        "怎一个愁字了得"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "在“叠词的表达效果”研讨课上，老师让大家找出用七组叠词开篇、写出若有所失与凄清冷寂之情的词句。《声声慢》开篇是：{1}，{2}，{3}。",
+      "a": [
+        "寻寻觅觅",
+        "冷冷清清",
+        "凄凄惨惨戚戚"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "傍晚风急，李清照想借酒暖身消愁，却觉得几杯淡酒难以抵挡寒风。《声声慢》中写这一情境的两句是：{1}，{2}。",
+      "a": [
+        "三杯两盏淡酒",
+        "怎敌他、晚来风急"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "看到大雁飞过，李清照心情悲伤，却觉得这雁像是旧时相识。《声声慢》中写这一细节的三句是：{1}，{2}，{3}。",
+      "a": [
+        "雁过也",
+        "正伤心",
+        "却是旧时相识"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "黄昏时分，细雨滴落在梧桐叶上，点点滴滴，更添愁绪。《声声慢》中写这一画面的两句是：{1}，{2}。",
+      "a": [
+        "梧桐更兼细雨",
+        "到黄昏、点点滴滴"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "登泰山记 · 姚鼐": [
+    {
+      "q": "雪后远望，青山被雪覆盖、雪光照亮南天，可以引用《登泰山记》中的“{1}，{2}”。",
+      "a": [
+        "苍山负雪",
+        "明烛天南"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "描写日出时太阳正红、下方红光托着的景象，可以引用《登泰山记》中的“{1}，{2}，{3}”。",
+      "a": [
+        "日上",
+        "正赤如丹",
+        "下有红光动摇承之"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "描写日出前天边云层颜色变化，可以引用《登泰山记》中的“{1}，{2}”。",
+      "a": [
+        "极天云一线异色",
+        "须臾成五采"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "描写山上松树生长在石缝中、树顶平坦，可以引用《登泰山记》中的“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "少杂树",
+        "多松",
+        "生石罅",
+        "皆平顶"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《梦游天姥吟留别》写“半壁见海日，空中闻天鸡”，《登泰山记》也写日出奇景，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "日上",
+        "正赤如丹",
+        "下有红光动摇承之"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《赤壁赋》写江上水光接天，《登泰山记》则写傍晚日照城郭、山水如画、半山云雾如带，句子是“{1}，{2}”。",
+      "a": [
+        "望晚日照城郭，汶水、徂徕如画",
+        "而半山居雾若带然"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "《登泰山记》中写青山被雪覆盖、雪光照亮南天的句子是“{1}，{2}”。",
+      "a": [
+        "苍山负雪",
+        "明烛天南"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《登泰山记》中写天边云层有一线奇异颜色、片刻变成五彩的句子是“{1}，{2}”。",
+      "a": [
+        "极天云一线异色",
+        "须臾成五采"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《登泰山记》中写太阳升起、正红如丹、下方有红光托着的句子是“{1}，{2}，{3}”。",
+      "a": [
+        "日上",
+        "正赤如丹",
+        "下有红光动摇承之"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《登泰山记》中写回看日观峰以西山峰、有的被日光照到有的没有、颜色红白交错、都像弯腰的句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "回视日观以西峰",
+        "或得日或否",
+        "绛皓驳色",
+        "而皆若偻"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《登泰山记》中写山上杂树少、松树多、生长在石缝中、树顶都平的句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "少杂树",
+        "多松",
+        "生石罅",
+        "皆平顶"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "姚鼐登泰山前，先写泰山南北的两条大河，汶水向西流，济水向东流。《登泰山记》中这两句是：{1}，{2}。",
+      "a": [
+        "汶水西流",
+        "济水东流"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "登山途中，看到青山覆盖着白雪，雪光映亮了南面的天空。请写出《登泰山记》中与此相契合的两句：{1}，{2}。",
+      "a": [
+        "苍山负雪",
+        "明烛天南"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "傍晚时分，夕阳映照城郭，汶水与徂徕山在夕照中美如画卷，半山腰的云雾像一条带子。请用《登泰山记》中的句子来形容这一画面：{1}，{2}。",
+      "a": [
+        "望晚日照城郭，汶水、徂徕如画",
+        "而半山居雾若带然"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "姚鼐与友人登山时，狂风卷起积雪扑打人脸。请用《登泰山记》中的句子来描述这一经历：{1}。",
+      "a": [
+        "大风扬积雪击面"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "日出前，天边的云像一条线，颜色奇异，一会儿便变成五彩。请写出《登泰山记》中与此相契合的两句：{1}，{2}。",
+      "a": [
+        "极天云一线异色",
+        "须臾成五采"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "太阳升起时，颜色纯红如朱砂，下面有红光摇动托着它。请写出《登泰山记》中描写日出奇观的三句：{1}，{2}，{3}。",
+      "a": [
+        "日上",
+        "正赤如丹",
+        "下有红光动摇承之"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "日出后再看日观峰以西的山峰，有的被日光照到，有的没有，红白错杂，都像弯腰曲背的样子。请用《登泰山记》中的句子来形容这一景象：{1}，{2}，{3}，{4}。",
+      "a": [
+        "回视日观以西峰",
+        "或得日或否",
+        "绛皓驳色",
+        "而皆若偻"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "子路、曾皙、冉有、公西华侍坐": [
+    {
+      "q": "《侍坐》中曾皙描绘暮春时节与友人在沂水沐浴、在舞雩台吹风咏歌的志向，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "浴乎沂",
+        "风乎舞雩",
+        "咏而归"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《侍坐》中子路急忙回答，说一个拥有千辆兵车的国家夹在大国之间，又遭受战争和饥荒，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "千乘之国",
+        "摄乎大国之间",
+        "加之以师旅"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《侍坐》中子路自信能在三年内使千乘之国百姓勇敢并懂得道义，《齐桓晋文之事》则主张安抚百姓即可称王，两者都重视教化百姓；子路的原句是“{1}，{2}”。",
+      "a": [
+        "可使有勇",
+        "且知方也"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "班会上，主持人请大家畅谈理想，见同学们因他年长几岁而拘谨，便借用《侍坐》中孔子的话打消大家的顾虑：{1}，{2}。",
+      "a": [
+        "以吾一日长乎尔",
+        "毋吾以也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "学校举办“春之韵”诗文配画展，一位同学为《侍坐》中的暮春图配文：春水初暖，几人沐浴于沂水，又在舞雩台上吹吹风，一路唱着歌回家。这幅画面正是：{1}，{2}，{3}。",
+      "a": [
+        "浴乎沂",
+        "风乎舞雩",
+        "咏而归"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "研讨课上，同学们讨论孔子为何特别欣赏曾皙。老师提示：孔子在听完曾皙的话后，长叹一声，表明了自己赞同的态度。孔子说的是：{1}。",
+      "a": [
+        "吾与点也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "语文课上，老师问孔子为什么对子路“哂之”。小雅结合《侍坐》中孔子的主张回答说，因为治国要靠礼让，而子路说话毫不谦逊：{1}，{2}。",
+      "a": [
+        "为国以礼",
+        "其言不让"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "学校举办“青春与担当”演讲比赛，一位同学以子路自比，表示若让他治理一方水土，三年后定能使百姓勇敢且懂得道义。这正合《侍坐》中的：{1}，{2}。",
+      "a": [
+        "可使有勇",
+        "且知方也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "齐桓晋文之事 · 孟子": [
+    {
+      "q": "《齐桓晋文之事》中孟子描绘王道社会的理想图景：老人穿丝吃肉，百姓不饥不寒，这样还不能称王的从未有过，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "老者衣帛食肉",
+        "黎民不饥不寒",
+        "然而不王者，未之有也"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《齐桓晋文之事》中孟子说在五亩大的宅院里种上桑树，五十岁的人就可以穿上丝织品，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "五亩之宅",
+        "树之以桑",
+        "五十者可以衣帛矣"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《齐桓晋文之事》中孟子用秤和尺作比，说明经过衡量才能知道轻重长短，句子是“{1}，{2}”。",
+      "a": [
+        "权，然后知轻重",
+        "度，然后知长短"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《侍坐》中冉有主张治理小国三年可使百姓富足，《齐桓晋文之事》中孟子也把安顿百姓视为王道根本，认为这样就没有人能阻挡君王，句子是“{1}，{2}”。",
+      "a": [
+        "保民而王",
+        "莫之能御也"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "学校举办“以人民为中心”主题宣讲，宣传委员引用《齐桓晋文之事》中孟子的话，强调君主若能使百姓安定，称王天下便无人能挡：{1}，{2}。",
+      "a": [
+        "保民而王",
+        "莫之能御也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "社区开展“尊老爱幼”志愿活动，发起人在倡议书中引用孟子的话，希望大家把对自己老人的孝敬推及到别人家的老人，把对自己孩子的爱护推及到别人家的孩子：{1}，{2}。",
+      "a": [
+        "老吾老，以及人之老",
+        "幼吾幼，以及人之幼"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "读书会上，大家讨论成语“缘木求鱼”的出处。有同学指出，它源自《齐桓晋文之事》中孟子批评齐宣王的话：{1}，{2}，{3}。",
+      "a": [
+        "以若所为",
+        "求若所欲",
+        "犹缘木而求鱼也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“共同富裕”主题班会上，有同学描绘了孟子所说的王道盛景：老人穿丝绸、吃肉食，百姓不挨饿不受冻，做到这样还不称王的情况从未有过：{1}，{2}，{3}。",
+      "a": [
+        "老者衣帛食肉",
+        "黎民不饥不寒",
+        "然而不王者，未之有也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "庖丁解牛 · 庄子": [
+    {
+      "q": "《庖丁解牛》中庖丁说牛骨节有间隙，而刀刃没有厚度，句子是“{1}，{2}”。",
+      "a": [
+        "彼节者有间",
+        "而刀刃者无厚"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《庖丁解牛》中形容刀刃在骨节间隙中运转宽宽绰绰、大有余地，句子是“{1}”。",
+      "a": [
+        "恢恢乎其于游刃必有余地矣"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《庖丁解牛》中庖丁解完牛后提刀站立，环顾四周，从容自得，把刀擦拭干净收起来，句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "提刀而立",
+        "为之四顾",
+        "为之踌躇满志",
+        "善刀而藏之"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《庖丁解牛》中写庖丁解牛的动作合乎《桑林》舞曲的节拍，又合于《经首》乐章的节奏，句子是“{1}，{2}”。",
+      "a": [
+        "合于《桑林》之舞",
+        "乃中《经首》之会"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《劝学》强调君子善于借助外物，庖丁则靠长期实践掌握规律，达到不用眼看、精神运行的境界，句子是“{1}，{2}”。",
+      "a": [
+        "臣以神遇而不以目视",
+        "官知止而神欲行"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "课本剧《庖丁解牛》排练时，导演要求演员表现出庖丁手、肩、足、膝并用的潇洒身姿。有同学指出，原文正是用这四个部位落笔的：{1}，{2}，{3}，{4}。",
+      "a": [
+        "手之所触",
+        "肩之所倚",
+        "足之所履",
+        "膝之所踦"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "一位外科医生在交流会上说，自己手术时已不靠眼睛盯着看，而是凭心神感受，感官停歇而心神运行。这让人想起《庖丁解牛》中庖丁达到的境界：{1}，{2}。",
+      "a": [
+        "臣以神遇而不以目视",
+        "官知止而神欲行"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“顺应规律、找准关键”的经验交流会上，有人引用《庖丁解牛》中庖丁顺应牛的天然肌理、在骨节空隙处运刀的做法：{1}，{2}，{3}。",
+      "a": [
+        "依乎天理",
+        "批大郤",
+        "导大窾"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "画家完成一幅巨作后，放下画笔，环顾四周，露出心满意足的神情，最后把笔洗净收起。这种状态恰如《庖丁解牛》中庖丁解牛之后的表现：{1}，{2}，{3}，{4}。",
+      "a": [
+        "提刀而立",
+        "为之四顾",
+        "为之踌躇满志",
+        "善刀而藏之"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "烛之武退秦师 · 左传": [
+    {
+      "q": "《烛之武退秦师》中烛之武劝说秦伯把郑国作为东方道路上的主人，方便使者往来、供应缺少的物资，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "若舍郑以为东道主",
+        "行李之往来",
+        "共其乏困"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《烛之武退秦师》中烛之武反问晋国哪里有满足的时候，句子是“{1}”。",
+      "a": [
+        "夫晋，何厌之有"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《烛之武退秦师》中秦伯听了烛之武的话很高兴，与郑国签订盟约，句子是“{1}，{2}”。",
+      "a": [
+        "秦伯说",
+        "与郑人盟"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《烛之武退秦师》中烛之武以利害说服秦伯，《六国论》则批评六国以地赂秦。烛之武指出灭亡郑国只会使邻国受益，句子是“{1}，{2}”。",
+      "a": [
+        "焉用亡郑以陪邻",
+        "邻之厚，君之薄也"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "学校为退休教师举办欢送会，一位老教师谦逊地说，自己年轻时就不如别人，如今更老了，做不了什么事了。这话让人想起《烛之武退秦师》中烛之武对郑伯的感叹：{1}，{2}，{3}。",
+      "a": [
+        "臣之壮也",
+        "犹不如人",
+        "今老矣，无能为也已"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "模拟联合国讨论“弱国外交”时，一方代表引用《烛之武退秦师》中烛之武的分析，提醒对方：何必灭掉郑国来增强邻国的实力，邻国强大了，您就相对削弱了：{1}，{2}。",
+      "a": [
+        "焉用亡郑以陪邻",
+        "邻之厚，君之薄也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在外交情景剧中，烛之武向秦伯许诺：如果放过郑国，让郑国做东方道路上的主人，秦国使者往来时，郑国可以供给他们缺乏的物资：{1}，{2}，{3}。",
+      "a": [
+        "若舍郑以为东道主",
+        "行李之往来",
+        "共其乏困"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“仁义与决策”的讨论课上，老师让同学们分析晋文公为何在占优时撤军。有同学引用晋文公的话说，依靠别人的力量却损害他，是不仁义的；失去同盟者，是不明智的；用混乱代替整齐，是不合武德的：{1}，{2}，{3}。",
+      "a": [
+        "因人之力而敝之，不仁",
+        "失其所与，不知",
+        "以乱易整，不武"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "鸿门宴 · 司马迁": [
+    {
+      "q": "《鸿门宴》中樊哙闯帐后掀开帷幕站在西边，瞪着眼睛看项羽，头发直竖，眼眶都要裂开，句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "披帷西向立",
+        "瞋目视项王",
+        "头发上指",
+        "目眦尽裂"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《鸿门宴》中樊哙说如今人家正像刀和砧板，我们像鱼和肉，还告辞什么，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "如今人方为刀俎",
+        "我为鱼肉",
+        "何辞为"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《鸿门宴》中刘邦丢下车马随从，独自骑马脱身，句子是“{1}，{2}”。",
+      "a": [
+        "沛公则置车骑",
+        "脱身独骑"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《烛之武退秦师》中烛之武趁夜缒城而出，《鸿门宴》中刘邦也从小路秘密脱身，句子是“{1}，{2}”。",
+      "a": [
+        "从郦山下",
+        "道芷阳间行"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "历史兴趣小组分析刘邦入关后的表现，认为他不贪财物、不亲近女色，可见志向不小。范增正是据此判断刘邦有野心：{1}，{2}，{3}。",
+      "a": [
+        "财物无所取",
+        "妇女无所幸",
+        "此其志不在小"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "课本剧排练樊哙闯帐劝刘邦离开一场时，导演要求突出“情况危急、不必辞行”。樊哙用“刀俎”和“鱼肉”作比，说：{1}，{2}，{3}。",
+      "a": [
+        "如今人方为刀俎",
+        "我为鱼肉",
+        "何辞为"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "文学社为《鸿门宴》画插图，要表现樊哙闯帐的威猛：他掀开帷幕，瞪大眼睛怒视项王，头发直竖，眼眶欲裂。这对应的原文是：{1}，{2}，{3}，{4}。",
+      "a": [
+        "披帷西向立",
+        "瞋目视项王",
+        "头发上指",
+        "目眦尽裂"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“听信谗言的代价”主题班会上，有同学模拟刘邦向项羽诉苦：自己劳苦功高却没有得到封赏，项羽反而听信小人的话，要杀有功之人：{1}，{2}，{3}，{4}。",
+      "a": [
+        "劳苦而功高如此",
+        "未有封侯之赏",
+        "而听细说",
+        "欲诛有功之人"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "谏逐客书 · 李斯": [
+    {
+      "q": "《谏逐客书》中以泰山、河海为喻说明君王应广纳人才，句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "泰山不让土壤，故能成其大",
+        "河海不择细流，故能就其深",
+        "王者不却众庶",
+        "故能明其德"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《谏逐客书》中李斯列举秦国所享用的珍宝都不产于秦国，反问秦王为何喜欢它们，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "此数宝者",
+        "秦不生一焉",
+        "而陛下说之，何也"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《谏逐客书》中指出物品不产于秦国而可宝贵的很多，士人不产于秦国而愿效忠的也很多，句子是“{1}，{2}”。",
+      "a": [
+        "夫物不产于秦，可宝者多",
+        "士不产于秦，而愿忠者众"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《劝学》以不积小流说明积累，《谏逐客书》也以河海接纳细流为喻说明君王应广纳人才，句子是“{1}，{2}”。",
+      "a": [
+        "河海不择细流",
+        "故能就其深"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "在“勇于进谏”的读书分享会上，有同学提到李斯上书秦王，开篇就直言听说要驱逐客卿，私下认为这是错误的。这句话是：{1}，{2}。",
+      "a": [
+        "臣闻吏议逐客",
+        "窃以为过矣"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "学校举办“开放包容”主题演讲，有选手引用李斯的话说明：泰山不拒绝土壤才能高大，河海不挑剔细流才能深广，君王不拒绝百姓才能彰显德行：{1}，{2}，{3}，{4}。",
+      "a": [
+        "泰山不让土壤，故能成其大",
+        "河海不择细流，故能就其深",
+        "王者不却众庶",
+        "故能明其德"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "李斯列举昆山之玉、随和之宝等宝物，指出这些都不是秦地出产，大王却很喜欢，并借此反问：{1}，{2}，{3}。",
+      "a": [
+        "此数宝者",
+        "秦不生一焉",
+        "而陛下说之，何也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“人才流失的警示”讨论中，有同学引用李斯的警告：现在驱逐客卿，等于把人才送给敌国，损害自己的百姓而帮助仇敌：{1}，{2}。",
+      "a": [
+        "今逐客以资敌国",
+        "损民以益仇"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "答司马谏议书 · 王安石": [
+    {
+      "q": "《答司马谏议书》中王安石说推行先王的政治、兴利除弊，不算生事，句子是“{1}，{2}”。",
+      "a": [
+        "举先王之政",
+        "以兴利除弊"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《答司马谏议书》中王安石说为国家治理财政，不算征利，句子是“{1}”。",
+      "a": [
+        "为天下理财"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《答司马谏议书》中王安石借盘庚迁都说明不因怨恨者改变计划，认为合乎道义就行动，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "盘庚不为怨者故改其度",
+        "度义而后动",
+        "是而不见可悔故也"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《六国论》批评六国因赂秦而亡，《答司马谏议书》则表明王安石坚持变法、不因怨谤而改弦更张，句子是“{1}，{2}”。",
+      "a": [
+        "盘庚不为怨者故改其度",
+        "度义而后动"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "辩论赛“名与实”环节，主持人引用王安石的观点：读书人所争的，尤其在于名与实是否相符；名实明确了，天下的道理就清楚了：{1}，{2}。",
+      "a": [
+        "盖儒者所争，尤在于名实",
+        "名实已明，而天下之理得矣"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“程序与法治”的研讨中，有同学引用王安石说明变法程序的正当性：从君主那里领受命令，在朝廷上议定法令制度，再交给有关部门执行：{1}，{2}，{3}。",
+      "a": [
+        "受命于人主",
+        "议法度而修之于朝廷",
+        "以授之于有司"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "王安石在《答司马谏议书》中说明变法的目的，是效法先王的政令，用来兴利除弊：{1}，{2}。",
+      "a": [
+        "举先王之政",
+        "以兴利除弊"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“坚持与担当”的班会上，同学引用王安石以盘庚迁都为例，说明只要认为合乎道义就行动，不因别人埋怨而改变：{1}，{2}，{3}。",
+      "a": [
+        "盘庚不为怨者故改其度",
+        "度义而后动",
+        "是而不见可悔故也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "阿房宫赋 · 杜牧": [
+    {
+      "q": "《阿房宫赋》中写走廊曲折回环、屋檐高翘，各依地势而建、屋角互相对峙，句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "廊腰缦回",
+        "檐牙高啄",
+        "各抱地势",
+        "钩心斗角"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《阿房宫赋》中以长桥、复道设问，写未云而龙、不霁而虹的奇景，句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "长桥卧波",
+        "未云何龙",
+        "复道行空",
+        "不霁何虹"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《阿房宫赋》中写宫女打开妆镜如明星闪烁、梳理发髻如绿云纷扰，句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "明星荧荧",
+        "开妆镜也",
+        "绿云扰扰",
+        "梳晓鬟也"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《六国论》认为六国灭亡弊在赂秦，《阿房宫赋》则指出秦朝灭亡源于自身骄奢，结尾告诫后人引以为鉴的句子是“{1}，{2}”。",
+      "a": [
+        "后人哀之而不鉴之",
+        "亦使后人而复哀后人也"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "历史纪录片解说词讲到秦统一六国后大兴土木，旁白引用了《阿房宫赋》的开篇：{1}，{2}，{3}，{4}。",
+      "a": [
+        "六王毕",
+        "四海一",
+        "蜀山兀",
+        "阿房出"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "一位游客站在横跨江面的长桥上，见长桥如巨龙卧波，又见空中复道似彩虹横空，不禁想起《阿房宫赋》中的名句：{1}，{2}，{3}，{4}。",
+      "a": [
+        "长桥卧波",
+        "未云何龙",
+        "复道行空",
+        "不霁何虹"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "纪录片用特写镜头表现阿房宫中宫女晨起梳妆：镜光闪烁如明星，发髻浓密如绿云。这对应的《阿房宫赋》句子是：{1}，{2}，{3}，{4}。",
+      "a": [
+        "明星荧荧",
+        "开妆镜也",
+        "绿云扰扰",
+        "梳晓鬟也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "读苏洵《六国论》结尾关于“凭天下之大却重蹈六国覆辙”的告诫，同学联想到《阿房宫赋》结尾同样警示后人要以史为鉴的话：{1}，{2}。",
+      "a": [
+        "后人哀之而不鉴之",
+        "亦使后人而复哀后人也"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    }
+  ],
+  "六国论 · 苏洵": [
+    {
+      "q": "《六国论》中以抱柴救火为喻，说明割地事秦适得其反，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "以地事秦",
+        "犹抱薪救火",
+        "薪不尽，火不灭"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《六国论》中称赞燕赵两国君主起初有长远谋略，能够守住国土、坚持道义不贿赂秦国，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "燕赵之君",
+        "始有远略",
+        "能守其土，义不赂秦"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《六国论》结尾告诫北宋统治者如果凭偌大的天下重蹈六国灭亡的覆辙，那就连六国也不如了，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "苟以天下之大",
+        "下而从六国破亡之故事",
+        "是又在六国下矣"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《阿房宫赋》认为秦亡于骄奢，《六国论》则把六国灭亡归因于贿赂秦国，开篇提出中心论点的句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "六国破灭",
+        "非兵不利",
+        "战不善",
+        "弊在赂秦"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "历史课上，老师问六国灭亡的根本原因，同学引用苏洵的观点：六国灭亡，不是兵器不锋利，也不是仗打得不好，而在于贿赂秦国：{1}，{2}，{3}，{4}。",
+      "a": [
+        "六国破灭",
+        "非兵不利",
+        "战不善",
+        "弊在赂秦"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“妥协退让的后果”主题讨论中，有同学用苏洵的比喻说明：拿土地去讨好秦国，就像抱着柴草救火，柴草不烧尽火就不会熄灭：{1}，{2}，{3}。",
+      "a": [
+        "以地事秦",
+        "犹抱薪救火",
+        "薪不尽，火不灭"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“气节与坚守”的主题班会上，有同学称赞燕国、赵国的君主开始有远大的谋略，能够守住自己的国土，坚持道义不贿赂秦国：{1}，{2}，{3}。",
+      "a": [
+        "燕赵之君",
+        "始有远略",
+        "能守其土，义不赂秦"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "杜牧在《阿房宫赋》结尾感叹，后人仅为秦人哀叹却不引以为鉴，于是只能让更后来的人再为他们哀叹。苏洵在《六国论》结尾也有类似警告：如果凭借偌大的天下，却重蹈六国灭亡的旧事，那就连六国都不如了：{1}，{2}，{3}。",
+      "a": [
+        "苟以天下之大",
+        "下而从六国破亡之故事",
+        "是又在六国下矣"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    }
+  ],
+  "<论语>十二章": [
+    {
+      "q": "《论语》十二章中孔子说早晨明白真理，晚上死去也没有遗憾，句子是“{1}，{2}”。",
+      "a": [
+        "朝闻道",
+        "夕死可矣"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《论语》十二章中孔子说君子明白道义，小人只懂得利益，句子是“{1}，{2}”。",
+      "a": [
+        "君子喻于义",
+        "小人喻于利"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《论语》十二章中曾子说读书人不能不志向远大、意志坚强，因为责任重大、道路遥远，句子是“{1}，{2}”。",
+      "a": [
+        "士不可以不弘毅",
+        "任重而道远"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《劝学》强调学习不可停止，《论语》十二章中孔子也以堆山、平地为喻说明进退全在自己，句子是“{1}，{2}”。",
+      "a": [
+        "譬如为山，未成一篑",
+        "譬如平地，虽覆一篑"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "在“义利之辨”主题班会上，有同学引用《论语》中的话，用“义”与“利”来区分君子和小人：{1}，{2}。",
+      "a": [
+        "君子喻于义",
+        "小人喻于利"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "某同学在日记中写道：身边优秀的同学让他明确了努力的方向，而个别同学身上的缺点也时时提醒他检点自己。这让他想起《论语》中的话：{1}，{2}。",
+      "a": [
+        "见贤思齐焉",
+        "见不贤而内自省也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "文天祥《过零丁洋》中的“人生自古谁无死，留取丹心照汗青”，与《论语》中为求“道”而不惧一死的名句精神相通：{1}，{2}。",
+      "a": [
+        "朝闻道",
+        "夕死可矣"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "在十八岁成人礼上，校长引用《论语》中的话勉励即将成年的同学们要刚强坚毅、勇担重任。这句话是：{1}，{2}。",
+      "a": [
+        "士不可以不弘毅",
+        "任重而道远"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "大学之道 · 《礼记》": [
+    {
+      "q": "《大学之道》中说知道应达到的境界才能心志坚定，心志坚定才能内心平静，句子是“{1}，{2}”。",
+      "a": [
+        "知止而后有定",
+        "定而后能静"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《大学之道》中讲八条目，说想要治理好国家要先整齐家庭，想要整齐家庭要先修养自身，句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "欲治其国者",
+        "先齐其家",
+        "欲齐其家者",
+        "先修其身"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《大学之道》中讲八条目推演的结果，说国家治理好了，天下就太平了，句子是“{1}”。",
+      "a": [
+        "国治而后天下平"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《论语》十二章说‘克己复礼为仁’，《大学之道》则把修身作为齐家治国平天下的根本，句子是“{1}，{2}”。",
+      "a": [
+        "自天子以至于庶人",
+        "壹是皆以修身为本"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "在“涵养家风”主题班会上，班主任引用《礼记·大学》中的话，阐明“治国”以“齐家”为始、“齐家”以“修身”为本的先后次第：{1}，{2}，{3}，{4}。",
+      "a": [
+        "欲治其国者",
+        "先齐其家",
+        "欲齐其家者",
+        "先修其身"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "学校向同学们赠送《礼记》书签，上面印着《大学》中强调“修身”是所有人（上至君主、下至百姓）共同根本的句子：{1}，{2}。",
+      "a": [
+        "自天子以至于庶人",
+        "壹是皆以修身为本"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在高三备考经验交流会上，学长说：“目标明确，心才安定；心安定，才能沉潜专注。”这与《礼记·大学》中的名言相通：{1}，{2}。",
+      "a": [
+        "知止而后有定",
+        "定而后能静"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "一位同学初读《礼记·大学》，在旁批中写下“抓根本、明始终、知先后”九个字概括自己的体会。他批注的原文应是：{1}，{2}，{3}。",
+      "a": [
+        "物有本末",
+        "事有终始",
+        "知所先后，则近道矣"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "人皆有不忍人之心 · 孟子": [
+    {
+      "q": "《人皆有不忍人之心》中孟子说四种发端扩充开来，就像火刚刚燃起、泉水刚刚涌出，句子是“{1}，{2}”。",
+      "a": [
+        "若火之始然",
+        "泉之始达"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《人皆有不忍人之心》中孟子说如果能扩充善端，就足以安定天下，句子是“{1}，{2}”。",
+      "a": [
+        "苟能充之",
+        "足以保四海"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《大学之道》强调修身以彰明美德，《人皆有不忍人之心》则认为把固有善端推广开来就能安定天下，句子是“{1}，{2}”。",
+      "a": [
+        "苟能充之",
+        "足以保四海"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "公益短片中，一个蹒跚学步的孩子即将跌入井中，围观的路人纷纷露出惊惧与怜惜的神情。这一画面恰好印证了孟子所说的：{1}，{2}。",
+      "a": [
+        "乍见孺子将入于井",
+        "皆有怵惕恻隐之心"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“中华传统美德”主题班会上，有同学引用《孟子》中的话，为“仁、义、礼、智”分别找到了它们在人心中最初的开端：{1}，{2}，{3}，{4}。",
+      "a": [
+        "恻隐之心，仁之端也",
+        "羞恶之心，义之端也",
+        "辞让之心，礼之端也",
+        "是非之心，智之端也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“人性向善”辩论赛中，正方引用《孟子》中的话，以“四肢”作比，说明恻隐、羞恶、辞让、是非这四种善端与生俱来：{1}，{2}。",
+      "a": [
+        "人之有是四端也",
+        "犹其有四体也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "一位老师这样向学生描绘孟子笔下的善端：它像刚刚点燃的火焰，又像刚刚涌出的泉水，充满生机、势不可挡。孟子原文是：{1}，{2}。",
+      "a": [
+        "若火之始然",
+        "泉之始达"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“小善成就大爱”公益分享会上，志愿者引用《孟子》中的话，鼓励大家把心中的善念不断扩充，说做到这一点便足以安定天下：{1}，{2}。",
+      "a": [
+        "苟能充之",
+        "足以保四海"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "老子四章": [
+    {
+      "q": "《老子》四章中说了解别人是智慧，了解自己才是高明，句子是“{1}，{2}”。",
+      "a": [
+        "知人者智",
+        "自知者明"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《老子》四章中说战胜别人是有力量，战胜自己才是真正强大，句子是“{1}，{2}”。",
+      "a": [
+        "胜人者有力",
+        "自胜者强"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《老子》四章中以合抱大树、九层高台、千里远行为喻说明事物由小到大积累，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "合抱之木，生于毫末",
+        "九层之台，起于累土",
+        "千里之行，始于足下"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《老子》四章中说走一千里远的路，是从脚下第一步开始的，句子是“{1}，{2}”。",
+      "a": [
+        "千里之行",
+        "始于足下"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《劝学》说不积累半步就无法到达千里，《老子》四章也用远行从脚下开始作比，句子是“{1}，{2}”。",
+      "a": [
+        "千里之行",
+        "始于足下"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "学完《五石之瓠》，有同学联想到《老子》中关于“有”与“无”各有所用的名句，觉得它与庄子“无用之用”的旨趣相通：{1}，{2}。",
+      "a": [
+        "有之以为利",
+        "无之以为用"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "一位同学总爱评论他人的长短，心理老师送给他《老子》中的一句话，提醒他别只盯着别人，更要看清自己：{1}，{2}。",
+      "a": [
+        "知人者智",
+        "自知者明"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“超越自我”主题班会上，有同学引用《老子》中的话，把“战胜别人”与“战胜自己”做了高下之分：{1}，{2}。",
+      "a": [
+        "胜人者有力",
+        "自胜者强"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "荀子在《劝学》中用“积跬步”“积小流”说明积累的重要，《老子》中也有提醒人们千里远行须从脚下开始的名句：{1}，{2}。",
+      "a": [
+        "千里之行",
+        "始于足下"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    }
+  ],
+  "五石之瓠 · 庄子": [
+    {
+      "q": "《五石之瓠》中庄子建议惠子把大葫芦系在身上当作腰舟，浮游于江湖，句子是“{1}”。",
+      "a": [
+        "何不虑以为大樽而浮乎江湖"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《五石之瓠》中庄子批评惠子心智像蓬草一样不通达，句子是“{1}”。",
+      "a": [
+        "则夫子犹有蓬之心也夫"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《庖丁解牛》说明顺应规律才能游刃有余，《五石之瓠》则借防冻药说明同一事物用法不同结果迥异，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "能不龟手一也",
+        "或以封，或不免于洴澼絖",
+        "则所用之异也"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "庄子讲述惠子得到五石之瓠：用它盛水，它却因不够坚固而无法自举；把它剖开做成瓢，又因太大而无处安放。与这两处情形对应的原文是：{1}，{2}；{3}，{4}。",
+      "a": [
+        "以盛水浆",
+        "其坚不能自举也",
+        "剖之以为瓢",
+        "则瓠落无所容"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“物尽其用”讨论课上，有同学讲到不龟手之药的典故：同样的药，有人凭它得到封地，有人却只能靠它漂洗丝絮。庄子借此感叹：{1}，{2}，{3}，{4}。",
+      "a": [
+        "能不龟手一也",
+        "或以封",
+        "或不免于洴澼絖",
+        "则所用之异也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "读到惠子嫌大瓠无用而把它砸碎，有同学在旁批中写道：“不是大瓠无用，是你不善用大。”庄子当时正是这样批评惠子的：{1}。",
+      "a": [
+        "夫子固拙于用大矣"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "庄子为惠子设想大瓠的妙用：把它做成腰舟系在身上，无拘无束地浮游于江湖之间。这一设想在文中的表述是：{1}。",
+      "a": [
+        "何不虑以为大樽而浮乎江湖"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "老师讲到庄子批评惠子“心有所蔽”时，让大家找出文中以“蓬”作比、说惠子心思不通达的句子：{1}。",
+      "a": [
+        "则夫子犹有蓬之心也夫"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "兼爱 · 墨子": [
+    {
+      "q": "《兼爱》中墨子指出天下人普遍相爱就安定，相互憎恶就混乱，句子是“{1}，{2}”。",
+      "a": [
+        "天下兼相爱则治",
+        "交相恶则乱"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《兼爱》中墨子主张圣人治理天下应禁止相互憎恶、鼓励相互相爱，句子是“{1}”。",
+      "a": [
+        "恶得不禁恶而劝爱"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《论语》十二章说‘己所不欲，勿施于人’，《兼爱》则主张人与人相爱、国与国不相攻，认为天下安定的条件是“{1}，{2}”。",
+      "a": [
+        "天下兼相爱则治",
+        "交相恶则乱"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "在“让世界充满爱”主题班会上，有同学引用《墨子·兼爱》中的名句，说明“相爱”与“相恶”会导致截然不同的天下大势：{1}，{2}。",
+      "a": [
+        "天下兼相爱则治",
+        "交相恶则乱"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“如何化解同学矛盾”的讨论课上，有同学引用《墨子·兼爱》中的话，强调先要弄清矛盾产生的根源，然后才能着手解决：{1}，{2}。",
+      "a": [
+        "必知乱之所自起",
+        "焉能治之"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在法治教育课上，老师问：墨子认为盗贼偷窃的根源是什么？有同学引用《墨子·兼爱》中的话来回答：{1}，{2}。",
+      "a": [
+        "盗爱其室",
+        "不爱其异室"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“孝亲敬长”主题班会上，有同学问：墨子如何解释有些人会做出不孝的事？另一位同学引用《墨子·兼爱》中的话回答：{1}，{2}，{3}。",
+      "a": [
+        "子自爱",
+        "不爱父",
+        "故亏父而自利"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "墨子用一个反问句来收束《兼爱》的论述，强调应当禁止人们相互憎恶、劝勉人们相互爱护。这个反问句是：{1}。",
+      "a": [
+        "恶得不禁恶而劝爱"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "屈原列传 · 司马迁": [
+    {
+      "q": "《屈原列传》中写屈原诚信却被怀疑、忠贞却被诽谤，句子是“{1}，{2}”。",
+      "a": [
+        "信而见疑",
+        "忠而被谤"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《屈原列传》中评价屈原的文章简练、言辞含蓄，志向高洁、行为端正，句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "其文约",
+        "其辞微",
+        "其志洁",
+        "其行廉"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《屈原列传》中司马迁高度赞扬屈原的志向，说即使与日月争辉也可以，句子是“{1}”。",
+      "a": [
+        "虽与日月争光可也"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《屈原列传》中写屈原远离污泥浊水，像蝉脱壳一样摆脱污秽，句子是“{1}，{2}”。",
+      "a": [
+        "自疏濯淖污泥之中",
+        "蝉蜕于浊秽"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《离骚》中屈原以香草明志，《屈原列传》则赞其志向高洁可与日月争辉，句子是“{1}”。",
+      "a": [
+        "虽与日月争光可也"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "班级为屈原制作“人物档案”，在“才学出众”一栏要引用《屈原列传》开篇对屈原的概括：他见闻广博、记忆力强，明晓国家治乱的道理，又擅长外交辞令。请写出这三句：{1}，{2}，{3}。",
+      "a": [
+        "博闻强志",
+        "明于治乱",
+        "娴于辞令"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "读《屈原列传》时，小语为屈原鸣不平：他一心为国，却遭小人离间而被君王怀疑；他忠诚不渝，反被谗言诽谤。请用文中的原句表达屈原的这种遭遇：{1}，{2}。",
+      "a": [
+        "信而见疑",
+        "忠而被谤"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“《离骚》读书分享会”上，你引用司马迁的评价来说明《离骚》文辞简约而意蕴深微，并由此带出屈原志向高洁、行为廉正。请写出这四句：{1}，{2}，{3}，{4}。",
+      "a": [
+        "其文约",
+        "其辞微",
+        "其志洁",
+        "其行廉"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "学校举办“与经典对话”主题活动，请你为屈原写一句“精神之光”寄语。可用《屈原列传》中赞美他光辉可与日月相比的句子：{1}。（答案不唯一）",
+      "a": [
+        "虽与日月争光可也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "苏武传 · 班固": [
+    {
+      "q": "《苏武传》中苏武说丧失气节、辱没使命，即使活着，又有什么脸面回到汉朝，句子是“{1}，{2}”。",
+      "a": [
+        "屈节辱命",
+        "虽生，何面目以归汉"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《苏武传》中写天上降雪，苏武躺着啃雪，和毡毛一起吞咽，几天不死，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "天雨雪",
+        "武卧啮雪",
+        "与旃毛并咽之"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《苏武传》中写苏武拄着汉朝符节放牧，睡卧起身都拿着，符节上的旄牛尾都脱落了，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "杖汉节牧羊",
+        "卧起操持",
+        "节旄尽落"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《屈原列传》赞屈原可与日月争光，《苏武传》则以十九年持节牧羊写其忠贞，结尾写他归汉时容貌变化的句子是“{1}，{2}”。",
+      "a": [
+        "始以强壮出",
+        "及还，须发尽白"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "在“民族气节”主题演讲中，选手讲述苏武面对匈奴的威逼利诱，认为如果丧失节操、辱没使命，即使活着，也无脸面回到汉朝。请写出苏武表明这一心志的句子：{1}，{2}。",
+      "a": [
+        "屈节辱命",
+        "虽生，何面目以归汉"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "纪录片《苏武牧羊》中有这样一个画面：北海边大雪纷飞，苏武躺卧在雪地里嚼雪，把毡毛一并咽下充饥。请用《苏武传》中的句子为这一画面配文：{1}，{2}，{3}。",
+      "a": [
+        "天雨雪",
+        "武卧啮雪",
+        "与旃毛并咽之"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "影视剧中，苏武手持汉节在北海放羊，无论起居都随身操持，久而久之，节上的旄毛全部脱落。请默写《苏武传》中描写这一细节的句子：{1}，{2}，{3}。",
+      "a": [
+        "杖汉节牧羊",
+        "卧起操持",
+        "节旄尽落"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "苏武归汉时，距离他出使匈奴已过去十九年：当初壮年出使，归来时须发尽白。请用《苏武传》中的句子写这一情景：{1}，{2}。",
+      "a": [
+        "始以强壮出",
+        "及还，须发尽白"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "过秦论 · 贾谊": [
+    {
+      "q": "《过秦论》中写秦人毫不费力就夺取了西河以外的土地，句子是“{1}”。",
+      "a": [
+        "于是秦人拱手而取西河之外"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《过秦论》中写秦始皇用刑罚奴役天下、威震四海，句子是“{1}，{2}”。",
+      "a": [
+        "执敲扑而鞭笞天下",
+        "威振四海"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《过秦论》中写秦始皇自以为关中险固、城池坚固、绵延千里，是子孙万代的基业，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "自以为关中之固",
+        "金城千里",
+        "子孙帝王万世之业也"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《过秦论》中写陈涉起义，砍下树木作兵器，举起竹竿作旗帜，天下人像云一样聚集响应，句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "斩木为兵",
+        "揭竿为旗",
+        "天下云集响应",
+        "赢粮而景从"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《六国论》认为六国破灭弊在赂秦，《过秦论》则指出秦朝迅速灭亡的根源，句子是“{1}”。",
+      "a": [
+        "仁义不施而攻守之势异也"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "在“统一与霸业”历史主题展上，讲解员介绍秦孝公时有吞并天下、统一八荒的雄心。请用《过秦论》中的句子：{1}，{2}，{3}，{4}。",
+      "a": [
+        "席卷天下",
+        "包举宇内",
+        "囊括四海之意",
+        "并吞八荒之心"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "历史纪录片再现秦末风云：起义者砍下树木作兵器，举起竹竿当旗帜，天下百姓如云一样聚集响应，带着粮食像影子一样追随。请用《过秦论》原句为画面配文：{1}，{2}，{3}，{4}。",
+      "a": [
+        "斩木为兵",
+        "揭竿为旗",
+        "天下云集响应",
+        "赢粮而景从"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“秦亡之鉴”专题阅读中，老师引导大家比较《过秦论》与《阿房宫赋》。请默写《过秦论》中直接点明秦朝因不施仁义而导致攻守形势发生根本转变的句子：{1}。",
+      "a": [
+        "仁义不施而攻守之势异也"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "“以史为鉴”班会上，同学提到秦始皇曾自认为关中地势险固，有千里金城，可保子孙称帝万世，结果二世而亡。请写出《过秦论》中表现这种盲目自信的句子：{1}，{2}，{3}。",
+      "a": [
+        "自以为关中之固",
+        "金城千里",
+        "子孙帝王万世之业也"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "五代史伶官传序 · 欧阳修": [
+    {
+      "q": "《五代史伶官传序》中写晋王临终把三支箭交给庄宗，叮嘱他不要忘记父亲的志向，句子是“{1}，{2}”。",
+      "a": [
+        "与尔三矢",
+        "尔其无忘乃父之志"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《五代史伶官传序》中写庄宗成功时意气昂扬，可以称得上豪壮，句子是“{1}，{2}”。",
+      "a": [
+        "其意气之盛",
+        "可谓壮哉"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《五代史伶官传序》中提出忧虑操劳可以使国家兴盛，安逸享乐可以使自身灭亡，句子是“{1}，{2}”。",
+      "a": [
+        "忧劳可以兴国",
+        "逸豫可以亡身"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《五代史伶官传序》中引用《尚书》的话说明自满招致损失、谦虚得到益处，句子是“{1}，{2}”。",
+      "a": [
+        "满招损",
+        "谦得益"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《阿房宫赋》总结秦亡教训，《五代史伶官传序》也以庄宗盛衰为鉴，提出国家兴亡在于人事的句子是“{1}，{2}”。",
+      "a": [
+        "忧劳可以兴国",
+        "逸豫可以亡身"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "历史课上，老师让同学们比较《过秦论》与《五代史伶官传序》的立论角度：贾谊归因于“仁义不施”，欧阳修则认为国家的盛衰虽关乎天命，但更在于人事。请默写欧阳修开篇提出的这一观点：{1}，{2}，{3}。",
+      "a": [
+        "盛衰之理",
+        "虽曰天命",
+        "岂非人事哉"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "话剧《伶官传》中，晋王临终前将三支箭郑重交给庄宗，嘱托他不要忘记父亲的心愿。这一情节对应的原文是：{1}，{2}。",
+      "a": [
+        "与尔三矢",
+        "尔其无忘乃父之志"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "学校“青年说”论坛上，主持人总结道：勤勉操劳可以使国家兴盛，安逸享乐足以使自身败亡。这与《孟子》中“生于忧患，死于安乐”的道理相通。请写出《五代史伶官传序》中的原句：{1}，{2}。",
+      "a": [
+        "忧劳可以兴国",
+        "逸豫可以亡身"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "班主任在总结班级问题时说：祸患往往从细微处逐渐积累，而聪明勇敢的人也常因沉溺于所爱之物而陷入困境。这正印证了《五代史伶官传序》中的：{1}，{2}。",
+      "a": [
+        "夫祸患常积于忽微",
+        "而智勇多困于所溺"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "燕歌行并序 · 高适": [
+    {
+      "q": "《燕歌行》中把战士在前线拼死作战与将军在帐中歌舞享乐对照的句子是“{1}，{2}”。",
+      "a": [
+        "战士军前半死生",
+        "美人帐下犹歌舞"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《燕歌行》中写大漠深秋草枯、孤城落日下士兵稀少的句子是“{1}，{2}”。",
+      "a": [
+        "大漠穷秋塞草腓",
+        "孤城落日斗兵稀"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《燕歌行》中写杀气白天化作阵云、寒夜传来刁斗声的句子是“{1}，{2}”。",
+      "a": [
+        "杀气三时作阵云",
+        "寒声一夜传刁斗"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《燕歌行》中写士兵白刃相见、血染沙场，为国捐躯哪里是为了功勋的句子是“{1}，{2}”。",
+      "a": [
+        "相看白刃血纷纷",
+        "死节从来岂顾勋"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《蜀相》怀念诸葛亮，《燕歌行》结尾也追忆名将李广，句子是“{1}，{2}”。",
+      "a": [
+        "君不见沙场征战苦",
+        "至今犹忆李将军"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "边塞诗专题课上，老师展示一幅唐代行军图：大军鸣金击鼓直下榆关，旌旗在碣石山间连绵蜿蜒。请用《燕歌行并序》中的句子为这幅图配文：{1}，{2}。",
+      "a": [
+        "摐金伐鼓下榆关",
+        "旌旆逶迤碣石间"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "读高适《燕歌行》，你会发现军中苦乐悬殊：士兵在阵前出生入死，而将领营帐里仍有美人轻歌曼舞。请写出这两句：{1}，{2}。这种批判与杜牧《泊秦淮》“隔江犹唱后庭花”的讽刺有相通之处。",
+      "a": [
+        "战士军前半死生",
+        "美人帐下犹歌舞"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "电影《燕歌行》中，镜头在长安城南与蓟北边塞之间切换：思妇望断肝肠，征人回首故园却空自怅望。请用原句表现这一两地对望的画面：{1}，{2}。",
+      "a": [
+        "少妇城南欲断肠",
+        "征人蓟北空回首"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "王昌龄《出塞》有“但使龙城飞将在，不教胡马度阴山”，高适《燕歌行》的结尾也借怀念汉代名将李广来表达对良将的渴望。请写出这两句：{1}，{2}。",
+      "a": [
+        "君不见沙场征战苦",
+        "至今犹忆李将军"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    }
+  ],
+  "李凭箜篌引 · 李贺": [
+    {
+      "q": "《李凭箜篌引》中以玉石碎裂、凤凰鸣叫和芙蓉泣露、香兰欢笑写乐声的句子是“{1}，{2}”。",
+      "a": [
+        "昆山玉碎凤凰叫",
+        "芙蓉泣露香兰笑"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《李凭箜篌引》中写乐声使女娲补天之处石破天惊、秋雨飘落的句子是“{1}，{2}”。",
+      "a": [
+        "女娲炼石补天处",
+        "石破天惊逗秋雨"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《李凭箜篌引》中写乐声传入神山、使老鱼跳波瘦蛟起舞的句子是“{1}，{2}”。",
+      "a": [
+        "梦入神山教神妪",
+        "老鱼跳波瘦蛟舞"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《李凭箜篌引》结尾写吴刚不眠倚着桂树、露水斜飞打湿寒兔的句子是“{1}，{2}”。",
+      "a": [
+        "吴质不眠倚桂树",
+        "露脚斜飞湿寒兔"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《琵琶行》以‘大珠小珠落玉盘’写乐声，《李凭箜篌引》则用玉石碎裂、凤凰鸣叫写乐声，句子是“{1}，{2}”。",
+      "a": [
+        "昆山玉碎凤凰叫",
+        "芙蓉泣露香兰笑"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "在“大唐乐舞”主题展中，解说员介绍李凭所用的箜篌以吴地丝弦、蜀地桐木制成，在秋高气爽之时弹奏，乐声使空山的浮云凝滞不动。请写出《李凭箜篌引》中的这两句：{1}，{2}。",
+      "a": [
+        "吴丝蜀桐张高秋",
+        "空山凝云颓不流"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "音乐鉴赏课上，老师请同学们品析李贺的比喻：箜篌声清脆时如昆仑玉碎、婉转时如凤凰鸣叫，悲抑时似芙蓉泣露、欢快时似香兰含笑。请写出这两句：{1}，{2}。",
+      "a": [
+        "昆山玉碎凤凰叫",
+        "芙蓉泣露香兰笑"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“想象力”主题读写课上，老师提到李贺借用女娲补天的神话，想象补天之处被乐声震破，引来漫天秋雨。请写出这两句：{1}，{2}。",
+      "a": [
+        "女娲炼石补天处",
+        "石破天惊逗秋雨"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "夜深人静，箜篌声渐渐消散：月宫的吴刚倚着桂树彻夜不眠，斜飞的露水打湿了玉兔。请用《李凭箜篌引》中的句子描绘这梦幻般的尾声：{1}，{2}。",
+      "a": [
+        "吴质不眠倚桂树",
+        "露脚斜飞湿寒兔"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "锦瑟 · 李商隐": [
+    {
+      "q": "回忆往事，当时只觉平常，事后才感到怅惘，可以引用《锦瑟》中的“{1}，{2}”。",
+      "a": [
+        "此情可待成追忆",
+        "只是当时已惘然"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《锦瑟》中“{1}，{2}”两句，借鲛人泣珠的传说写月夜沧海的美景。",
+      "a": [
+        "沧海月明珠有泪",
+        "蓝田日暖玉生烟"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《锦瑟》中“{1}，{2}”两句，借庄周梦蝶和望帝化鹃的典故抒发迷离哀怨之情。",
+      "a": [
+        "庄生晓梦迷蝴蝶",
+        "望帝春心托杜鹃"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "李商隐《锦瑟》以“{1}，{2}”开篇，由锦瑟的弦柱引出对华年的追忆。",
+      "a": [
+        "锦瑟无端五十弦",
+        "一弦一柱思华年"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《赤壁赋》用‘逝者如斯’感叹人生，《锦瑟》则用庄周梦蝶、望帝托鹃表达迷离怅惘，句子是“{1}，{2}”。",
+      "a": [
+        "庄生晓梦迷蝴蝶",
+        "望帝春心托杜鹃"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "夜读《锦瑟》，诗人叹息这华美的乐器为何有五十根弦，每一弦每一柱都牵动他对青春年华的追忆。请写出这两句：{1}，{2}。",
+      "a": [
+        "锦瑟无端五十弦",
+        "一弦一柱思华年"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "“庄周梦蝶”与“望帝啼鹃”两个典故在《锦瑟》中被用来表达迷惘与哀怨。请写出运用这两个典故的句子：{1}，{2}。",
+      "a": [
+        "庄生晓梦迷蝴蝶",
+        "望帝春心托杜鹃"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "有人为《锦瑟》配了一幅画：月明沧海之上，鲛人泣泪成珠；蓝田暖日照耀，良玉生烟。请用原句为这幅画题词：{1}，{2}。",
+      "a": [
+        "沧海月明珠有泪",
+        "蓝田日暖玉生烟"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "毕业多年后重读《锦瑟》，你才懂得：那份深情并非等到追忆时才开始可叹，而是在当时就已经惘然若失。请写出表达此意的句子：{1}，{2}。",
+      "a": [
+        "此情可待成追忆",
+        "只是当时已惘然"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "书愤 · 陆游": [
+    {
+      "q": "《书愤》中回忆夜雪中楼船战舰驶过瓜洲渡、秋风中铁骑驰骋大散关的句子是“{1}，{2}”。",
+      "a": [
+        "楼船夜雪瓜洲渡",
+        "铁马秋风大散关"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《书愤》中赞叹《出师表》名传后世，千年来谁能与诸葛亮相比，句子是“{1}，{2}”。",
+      "a": [
+        "出师一表真名世",
+        "千载谁堪伯仲间"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "抒发壮志未酬、年华已老的悲愤，可以引用《书愤》中的“{1}，{2}”。",
+      "a": [
+        "塞上长城空自许",
+        "镜中衰鬓已先斑"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《书愤》中“{1}，{2}”两句，写诗人以塞上长城自比却壮志落空的悲愤。",
+      "a": [
+        "塞上长城空自许",
+        "镜中衰鬓已先斑"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《蜀相》赞诸葛亮‘出师未捷身先死’，《书愤》也借《出师表》抒发壮志，句子是“{1}，{2}”。",
+      "a": [
+        "出师一表真名世",
+        "千载谁堪伯仲间"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "陆游晚年追忆青年时代，那时他哪里知道世事的艰难，常常北望中原，收复失地的豪气如高山般磅礴。请用《书愤》写出这两句：{1}，{2}。",
+      "a": [
+        "早岁那知世事艰",
+        "中原北望气如山"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“家国情怀”主题诗会上，你向大家介绍陆游诗中的两组经典意象：雪夜的楼船与瓜洲渡，秋风的铁马与大散关。请写出这两句：{1}，{2}。",
+      "a": [
+        "楼船夜雪瓜洲渡",
+        "铁马秋风大散关"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "岁月流逝，陆游曾以守卫边疆的良将自许，无奈壮志落空，对镜只见双鬓早已斑白。请写出《书愤》中流露这种悲慨的句子：{1}，{2}。",
+      "a": [
+        "塞上长城空自许",
+        "镜中衰鬓已先斑"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "陆游在《书愤》中追慕诸葛亮，认为《出师表》足以名传后世，千载之下无人能与之相比。这与杜甫《蜀相》“出师未捷身先死，长使英雄泪满襟”的敬仰之情相通。请写出这两句：{1}，{2}。",
+      "a": [
+        "出师一表真名世",
+        "千载谁堪伯仲间"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    }
+  ],
+  "氓 · 《诗经·卫风》": [
+    {
+      "q": "《氓》中写女子登上残破的墙垣遥望复关，看不见时泪水涟涟，句子是“{1}，{2}”。",
+      "a": [
+        "不见复关",
+        "泣涕涟涟"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《氓》中以桑叶未落、叶片润泽起兴，写女子年轻貌美，句子是“{1}，{2}”。",
+      "a": [
+        "桑之未落",
+        "其叶沃若"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《氓》中写女子嫁到夫家后，多年过着贫苦生活，句子是“{1}，{2}”。",
+      "a": [
+        "自我徂尔",
+        "三岁食贫"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《氓》中写女子多年来早起晚睡、没有一天不是这样操劳，句子是“{1}，{2}”。",
+      "a": [
+        "夙兴夜寐",
+        "靡有朝矣"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《孔雀东南飞》写刘兰芝被遣，《氓》则写女子被弃后回顾少年时代欢乐相处的句子是“{1}，{2}”。",
+      "a": [
+        "总角之宴",
+        "言笑晏晏"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "在“童年”主题读书会上，小雅引用了《诗经·卫风·氓》中的两句诗，说它们用“总角”这一细节写出男女主人公两小无猜、说笑玩耍的童年时光。这两句是：{1}，{2}。",
+      "a": [
+        "总角之宴",
+        "言笑晏晏"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "桑树是《诗经》中常见的意象。一位讲《诗经》的教授说，《卫风·氓》以桑叶的润泽起兴，暗示女子正当青春、容颜美好。这两句是：{1}，{2}。",
+      "a": [
+        "桑之未落",
+        "其叶沃若"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "老师在讲古汉语通假现象时举例：“说”在《诗经·卫风·氓》中通“脱”，表示解脱、摆脱。含有这一通假字的两句是：{1}，{2}。",
+      "a": [
+        "士之耽兮，犹可说也",
+        "女之耽兮，不可说也"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    },
+    {
+      "q": "一部以《诗经·卫风·氓》为蓝本的微电影中，女主人公在昏暗的灯光下纺绩到深夜，天不亮又起身劳作。这一幕正是诗中“{1}，{2}”两句的写照。",
+      "a": [
+        "夙兴夜寐",
+        "靡有朝矣"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "离骚（节选） · 屈原": [
+    {
+      "q": "《离骚》中写父亲给屈原起名叫正则、取字叫灵均，句子是“{1}，{2}”。",
+      "a": [
+        "名余曰正则兮",
+        "字余曰灵均"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《离骚》中写屈原既有美好的内在品质，又加上美好的才能，句子是“{1}，{2}”。",
+      "a": [
+        "纷吾既有此内美兮",
+        "又重之以修能"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《离骚》中写屈原感到时光如流水般追赶不上，担心年岁不等待自己，句子是“{1}，{2}”。",
+      "a": [
+        "汩余若将不及兮",
+        "恐年岁之不吾与"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《屈原列传》称屈原‘其志洁，其行廉’，《离骚》中他以香草为佩表明高洁志向，句子是“{1}，{2}”。",
+      "a": [
+        "扈江离与辟芷兮",
+        "纫秋兰以为佩"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "在“追根溯源”主题班会上，一位同学引用屈原《离骚》的开篇两句，说明自己与诗人一样以家族血脉为荣。这两句是：{1}，{2}。",
+      "a": [
+        "帝高阳之苗裔兮",
+        "朕皇考曰伯庸"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“香草美人”文学传统讲座上，主讲人说屈原用香草来象征美德，其中“江离”“辟芷”“秋兰”都出现在同一联中。这一联是：{1}，{2}。",
+      "a": [
+        "扈江离与辟芷兮",
+        "纫秋兰以为佩"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "高考百日誓师大会上，一位同学引用屈原《离骚》中感叹时光飞逝、唯恐年岁不待的两句来勉励大家只争朝夕。这两句是：{1}，{2}。",
+      "a": [
+        "汩余若将不及兮",
+        "恐年岁之不吾与"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "看到秋日草木凋零，屈原联想到年华老去、功业难成。他在《离骚》中写道：{1}，{2}。",
+      "a": [
+        "惟草木之零落兮",
+        "恐美人之迟暮"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "孔雀东南飞并序": [
+    {
+      "q": "《孔雀东南飞》中刘兰芝对焦仲卿说，他应当像磐石，自己应当像蒲苇，句子是“{1}，{2}”。",
+      "a": [
+        "君当作磐石",
+        "妾当作蒲苇"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《孔雀东南飞》中刘兰芝说蒲苇坚韧如丝，磐石不会转移，句子是“{1}，{2}”。",
+      "a": [
+        "蒲苇纫如丝",
+        "磐石无转移"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《孔雀东南飞》结尾写焦仲卿与刘兰芝合葬后，墓旁树木枝叶相互覆盖、交错连接，句子是“{1}，{2}”。",
+      "a": [
+        "枝枝相覆盖",
+        "叶叶相交通"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《孔雀东南飞》结尾写墓中出现一对双飞的鸟，自称为鸳鸯，句子是“{1}，{2}”。",
+      "a": [
+        "中有双飞鸟",
+        "自名为鸳鸯"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《氓》写女子被弃，《孔雀东南飞》则写刘兰芝与焦仲卿以死殉情，结尾化鸟双飞的句子是“{1}，{2}”。",
+      "a": [
+        "中有双飞鸟",
+        "自名为鸳鸯"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "古诗常用禽鸟起兴。有一首汉乐府诗，开篇写孔雀向东南飞去，因留恋伴侣而不时徘徊，为全诗奠定了哀婉的基调。请写出开篇这两句：{1}，{2}。",
+      "a": [
+        "孔雀东南飞",
+        "五里一徘徊"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "焦仲卿与刘兰芝分别时立下誓言，一个自比磐石，一个自比蒲苇，表示爱情坚贞不移。这两句是：{1}，{2}。",
+      "a": [
+        "君当作磐石",
+        "妾当作蒲苇"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "刘兰芝盛妆辞别婆家，诗中用工笔描绘她手指纤细白嫩、嘴唇红润，如葱根、含朱丹。这两句是：{1}，{2}。",
+      "a": [
+        "指如削葱根",
+        "口如含朱丹"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《孔雀东南飞并序》的结尾，焦刘二人合葬后，坟上树木枝叶交错相连，象征两人至死不渝的爱情。这两句是：{1}，{2}。",
+      "a": [
+        "枝枝相覆盖",
+        "叶叶相交通"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    }
+  ],
+  "蜀道难 · 李白": [
+    {
+      "q": "《蜀道难》中反复感叹蜀道艰难、比上青天还难，句子是“{1}，{2}”。",
+      "a": [
+        "蜀道之难",
+        "难于上青天"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《蜀道难》中写黄鹤尚且飞不过去，猿猴想越过也发愁攀援，句子是“{1}，{2}”。",
+      "a": [
+        "黄鹤之飞尚不得过",
+        "猿猱欲度愁攀援"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《蜀道难》中写剑阁高峻险要，一人把守、万人攻不开，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "剑阁峥嵘而崔嵬",
+        "一夫当关",
+        "万夫莫开"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《蜀道难》中写连绵山峰离天不到一尺，枯松倒挂在绝壁上，句子是“{1}，{2}”。",
+      "a": [
+        "连峰去天不盈尺",
+        "枯松倒挂倚绝壁"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《蜀相》写蜀地丞相祠堂，《蜀道难》则写蜀道之险，开篇反复感叹的句子是“{1}，{2}”。",
+      "a": [
+        "蜀道之难",
+        "难于上青天"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "李白以神话入诗，想象太阳神的六龙驾车行至蜀山也得绕道而行，山下更有波浪回旋的急流。这两句是：{1}，{2}。",
+      "a": [
+        "上有六龙回日之高标",
+        "下有冲波逆折之回川"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“李白诗歌的夸张与衬托”专题课上，老师提到：李白写蜀道难行，不直说人走不了，而说能飞的鸟和善爬的猿都无可奈何。请写出这两句：{1}，{2}。",
+      "a": [
+        "黄鹤之飞尚不得过",
+        "猿猱欲度愁攀援"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "某军事纪录片介绍剑阁关隘时，解说词称这里山势高峻，一人扼守，万人难攻。这一表述正出自李白《蜀道难》的：{1}，{2}，{3}。",
+      "a": [
+        "剑阁峥嵘而崔嵬",
+        "一夫当关",
+        "万夫莫开"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    },
+    {
+      "q": "李白在《蜀道难》结尾劝告友人，锦官城虽值得留恋，但不如早早回家。这两句是：{1}，{2}。",
+      "a": [
+        "锦城虽云乐",
+        "不如早还家"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "蜀相 · 杜甫": [
+    {
+      "q": "《蜀相》中写阶前碧草自成春色、叶间黄鹂空有好听的鸣声，句子是“{1}，{2}”。",
+      "a": [
+        "映阶碧草自春色",
+        "隔叶黄鹂空好音"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《蜀相》中概括诸葛亮一生：刘备三顾茅庐咨询天下大计，他辅佐两朝尽忠报国，句子是“{1}，{2}”。",
+      "a": [
+        "三顾频烦天下计",
+        "两朝开济老臣心"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "瞻仰武侯祠、追怀诸葛亮，可以引用《蜀相》中的“{1}，{2}”。",
+      "a": [
+        "丞相祠堂何处寻",
+        "锦官城外柏森森"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《蜀相》中“{1}，{2}”两句，写祠堂所在之地柏树森森、环境幽静。",
+      "a": [
+        "丞相祠堂何处寻",
+        "锦官城外柏森森"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《书愤》借《出师表》赞诸葛亮，《蜀相》则直接写诸葛亮功业未成身先死，句子是“{1}，{2}”。",
+      "a": [
+        "出师未捷身先死",
+        "长使英雄泪满襟"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "杜甫寻访武侯祠，看到锦官城外古柏高大茂密。他用两句诗点明祠堂的位置与环境：{1}，{2}。",
+      "a": [
+        "丞相祠堂何处寻",
+        "锦官城外柏森森"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "春日武侯祠游人稀少，阶前碧草自生春色，黄鹂空自啼鸣。杜甫借“自”“空”二字写尽寂寞。这两句是：{1}，{2}。",
+      "a": [
+        "映阶碧草自春色",
+        "隔叶黄鹂空好音"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“致敬先贤”演讲比赛中，有选手说诸葛亮的一生可以用“三顾”与“两朝”来概括。若用杜甫《蜀相》中的两句诗来印证，应为：{1}，{2}。",
+      "a": [
+        "三顾频烦天下计",
+        "两朝开济老臣心"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "一位同学在作文中写道：“历史记住了诸葛亮鞠躬尽瘁的忠诚，也记住了他星落五丈原的遗憾。”若用杜甫《蜀相》中的两句诗来配这段话，最合适的是：{1}，{2}。",
+      "a": [
+        "出师未捷身先死",
+        "长使英雄泪满襟"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "望海潮 · 柳永": [
+    {
+      "q": "《望海潮》中写如烟柳色、如画小桥，风中帘幕翠绿，房屋参差、人口稠密，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "烟柳画桥",
+        "风帘翠幕",
+        "参差十万人家"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《望海潮》中写高树环绕江堤、怒涛卷起霜雪般的浪花、江面辽阔无边，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "云树绕堤沙",
+        "怒涛卷霜雪",
+        "天堑无涯"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《望海潮》中写晴天羌笛悠扬、夜晚菱歌飘荡，句子是“{1}，{2}”。",
+      "a": [
+        "羌管弄晴",
+        "菱歌泛夜"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《望海潮》中写长官出行随从众多，带着醉意听箫鼓、欣赏烟霞，句子是“{1}，{2}”。",
+      "a": [
+        "千骑拥高牙",
+        "乘醉听箫鼓"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《扬州慢》写扬州萧条，《望海潮》则写杭州繁华，其中描写西湖桂荷的句子是“{1}，{2}”。",
+      "a": [
+        "有三秋桂子",
+        "十里荷花"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "杭州举办亚运会时，宣传片解说词想引用柳永《望海潮》开篇三句，从地理位置、都会气象和悠久历史三个角度赞美杭州。这三句是：{1}，{2}，{3}。",
+      "a": [
+        "东南形胜",
+        "三吴都会",
+        "钱塘自古繁华"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "金秋时节，杭州满城桂香，西湖荷花连绵不绝。柳永《望海潮》中的这两句写尽杭州的秋色夏景：{1}，{2}。",
+      "a": [
+        "有三秋桂子",
+        "十里荷花"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在介绍宋词中的“帘幕”意象时，老师提到柳永《望海潮》用“翠幕”一词写都市人家房舍的雅致，连同街巷河桥之美一起描绘。请写出这三句：{1}，{2}，{3}。",
+      "a": [
+        "烟柳画桥",
+        "风帘翠幕",
+        "参差十万人家"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "杭州百姓生活安乐：晴天有羌笛之声，夜晚有采菱之歌。柳永《望海潮》中的这两句是：{1}，{2}。",
+      "a": [
+        "羌管弄晴",
+        "菱歌泛夜"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "扬州慢 · 姜夔": [
+    {
+      "q": "《扬州慢》开篇点明扬州是淮东名城、竹西名胜，词人解鞍稍作停留，句子是“{1}，{2}”。",
+      "a": [
+        "淮左名都",
+        "竹西佳处"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《扬州慢》中写经过昔日繁华的十里长街，只见荠菜麦子青青，句子是“{1}，{2}”。",
+      "a": [
+        "过春风十里",
+        "尽荠麦青青"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《扬州慢》中写黄昏时分清角吹出寒意，回荡在空城之中，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "渐黄昏",
+        "清角吹寒",
+        "都在空城"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《扬州慢》结尾写桥边红芍药，年年不知为谁开放，句子是“{1}，{2}”。",
+      "a": [
+        "念桥边红药",
+        "年年知为谁生"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《望海潮》写杭州‘十里荷花’，《扬州慢》则写战后扬州荒凉，借杜牧诗句反衬的句子是“{1}，{2}”。",
+      "a": [
+        "过春风十里",
+        "尽荠麦青青"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "同为写江南名城，柳永《望海潮》极写杭州的繁华，姜夔《扬州慢》却写扬州昔日的繁华街市如今长满青青荠麦。请写出这两句：{1}，{2}。",
+      "a": [
+        "过春风十里",
+        "尽荠麦青青"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "扬州战后，城池废弃，古木参天，连草木都厌倦了战争。姜夔用“废池”“乔木”写战乱创伤。请写出这两句：{1}，{2}。",
+      "a": [
+        "废池乔木",
+        "犹厌言兵"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "黄昏时分，凄清的号角声在扬州城上空回荡，更显空城之寂。姜夔写道：{1}，{2}，{3}。",
+      "a": [
+        "渐黄昏",
+        "清角吹寒",
+        "都在空城"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "扬州名胜二十四桥依然存在，但桥下水面泛起波纹，一轮冷月倒映水中，寂静无声。姜夔借此写物是人非。这三句是：{1}，{2}，{3}。",
+      "a": [
+        "二十四桥仍在",
+        "波心荡",
+        "冷月无声"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "陈情表 · 李密": [
+    {
+      "q": "《陈情表》中写祖母刘氏像快要落山的太阳，气息微弱、生命垂危，句子是“{1}，{2}”。",
+      "a": [
+        "但以刘日薄西山",
+        "气息奄奄"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《陈情表》中以乌鸦反哺比喻孝心，请求允许自己为祖母养老送终，句子是“{1}，{2}”。",
+      "a": [
+        "乌鸟私情",
+        "愿乞终养"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《陈情表》中写自己进退两难、十分狼狈，句子是“{1}，{2}”。",
+      "a": [
+        "臣之进退",
+        "实为狼狈"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《陈情表》结尾表示活着当为国捐躯，死后也要结草报恩，句子是“{1}，{2}”。",
+      "a": [
+        "臣生当陨首",
+        "死当结草"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《出师表》以忠悃进言，《陈情表》以孝情陈情；李密说祖孙二人相依为命、不能分离的句子是“{1}，{2}”。",
+      "a": [
+        "母孙二人",
+        "更相为命"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "李密自幼孤苦，内外无亲，只有自己的身影相伴。他在《陈情表》中用两句形容这种孤独：{1}，{2}。",
+      "a": [
+        "茕茕孑立",
+        "形影相吊"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "在“陪伴老人”的公益广告文案中，策划者引用了《陈情表》中比喻祖母生命垂危、如太阳将落山的两句：{1}，{2}。",
+      "a": [
+        "但以刘日薄西山",
+        "气息奄奄"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "乌鸦反哺的典故常用来表达孝心。李密在《陈情表》中借此典故请求先为祖母养老送终。这两句是：{1}，{2}。",
+      "a": [
+        "乌鸟私情",
+        "愿乞终养"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    },
+    {
+      "q": "李密说祖母与自己二人相依为命，谁也离不开谁。请写出这两句：{1}，{2}。",
+      "a": [
+        "母孙二人",
+        "更相为命"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    }
+  ],
+  "项脊轩志 · 归有光": [
+    {
+      "q": "《项脊轩志》中写十五月明之夜，明月照到半墙，桂树影子斑驳，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "三五之夜",
+        "明月半墙",
+        "桂影斑驳"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《项脊轩志》中祖母拿出祖传象笏，说这是先祖宣德年间上朝所用，日后你应当用它，句子是“{1}，{2}”。",
+      "a": [
+        "此吾祖太常公宣德间执此以朝",
+        "他日汝当用之"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《项脊轩志》结尾写庭院中有枇杷树，是妻子去世那年亲手栽种的，如今已高高挺立如伞盖，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "庭有枇杷树",
+        "吾妻死之年所手植也",
+        "今已亭亭如盖矣"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《项脊轩志》中写作者关着窗户住在轩中，时间久了能凭脚步声辨别来人，句子是“{1}，{2}”。",
+      "a": [
+        "余扃牖而居",
+        "久之，能以足音辨人"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《陈情表》写祖母抚养之恩，《项脊轩志》则借枇杷树寄托对亡妻的怀念，句子是“{1}，{2}”。",
+      "a": [
+        "庭有枇杷树",
+        "吾妻死之年所手植也"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "归有光修缮项脊轩，向北开了四扇窗，用矮墙围起院子，让南边日光照射进来，室内才明亮起来。这三句是：{1}，{2}，{3}。",
+      "a": [
+        "前辟四窗",
+        "垣墙周庭",
+        "以当南日"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    },
+    {
+      "q": "中秋月夜，月光照亮半墙，桂树影子疏疏落落，随风摇曳。归有光笔下的这三句是：{1}，{2}，{3}。",
+      "a": [
+        "三五之夜",
+        "明月半墙",
+        "桂影斑驳"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "归有光妻子去世那年他亲手种下枇杷树，如今树已高大如伞。这寄托思念的三句是：{1}，{2}，{3}。",
+      "a": [
+        "庭有枇杷树",
+        "吾妻死之年所手植也",
+        "今已亭亭如盖矣"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "归有光回忆祖母曾拿着祖父上朝用的象笏对他说，这是祖父宣德年间上朝所用，日后他也会用上。祖母说的这两句是：{1}，{2}。",
+      "a": [
+        "此吾祖太常公宣德间执此以朝",
+        "他日汝当用之"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "兰亭集序 · 王羲之": [
+    {
+      "q": "《兰亭集序》中写兰亭有高峻的山岭、茂密的树林和修长的竹子，句子是“{1}，{2}”。",
+      "a": [
+        "此地有崇山峻岭",
+        "茂林修竹"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《兰亭集序》中写把溪水引作流觞曲水，大家依次列坐在水边，句子是“{1}，{2}”。",
+      "a": [
+        "引以为流觞曲水",
+        "列坐其次"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《兰亭集序》中王羲之引用古语感叹生死是人生大事，句子是“{1}”。",
+      "a": [
+        "死生亦大矣"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《兰亭集序》中明确否定把生死看作一样、把长寿短命看作等同的虚妄说法，句子是“{1}，{2}”。",
+      "a": [
+        "固知一死生为虚诞",
+        "齐彭殇为妄作"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《赤壁赋》以江水明月论变与不变，《兰亭集序》则由今昔之感推想后人看今人，句子是“{1}，{2}”。",
+      "a": [
+        "后之视今",
+        "亦犹今之视昔"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "学校举办百年校庆笔会，书法名家与在校学生齐聚一堂。这种老少咸集的盛况，正如王羲之《兰亭集序》中的两句：{1}，{2}。",
+      "a": [
+        "群贤毕至",
+        "少长咸集"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "兰亭地处山间，四周有高山、茂林、修竹。王羲之描写兰亭环境的这两句是：{1}，{2}。",
+      "a": [
+        "此地有崇山峻岭",
+        "茂林修竹"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "古人上巳节有“流觞曲水”的雅俗：把酒杯放入弯曲的溪水中任其漂流，众人依次取杯饮酒。王羲之《兰亭集序》中写这一盛况的两句是：{1}，{2}。",
+      "a": [
+        "引以为流觞曲水",
+        "列坐其次"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "春日郊游，天气晴朗，微风和煦。王羲之《兰亭集序》中描写这种宜人天气的两句是：{1}，{2}。",
+      "a": [
+        "天朗气清",
+        "惠风和畅"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "归去来兮辞并序 · 陶渊明": [
+    {
+      "q": "《归去来兮辞》中写确实走入迷途还不算远，觉悟到今天是对的而昨天是错的，句子是“{1}，{2}”。",
+      "a": [
+        "实迷途其未远",
+        "觉今是而昨非"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《归去来兮辞》中写庭院小路快要荒芜，松树菊花仍然保存，句子是“{1}，{2}”。",
+      "a": [
+        "三径就荒",
+        "松菊犹存"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《归去来兮辞》中写草木欣欣向荣、泉水细细流淌，句子是“{1}，{2}”。",
+      "a": [
+        "木欣欣以向荣",
+        "泉涓涓而始流"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《归去来兮辞》中写富贵不是自己的愿望，仙境也不可期望，句子是“{1}，{2}”。",
+      "a": [
+        "富贵非吾愿",
+        "帝乡不可期"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《归园田居》写‘久在樊笼里，复得返自然’，《归去来兮辞》也表达摆脱官场、回归田园的欣喜，开篇呼唤归去的句子是“{1}”。",
+      "a": [
+        "归去来兮，田园将芜胡不归"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "在“告别过去，重新出发”的励志演讲中，演讲者引用陶渊明《归去来兮辞并序》中的两句，说明过去的错误已无法挽回，但未来仍可把握。这两句是：{1}，{2}。",
+      "a": [
+        "悟已往之不谏",
+        "知来者之可追"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "陶渊明以云出山间、鸟倦飞归比喻自己厌倦官场、渴望归隐。这两句是：{1}，{2}。",
+      "a": [
+        "云无心以出岫",
+        "鸟倦飞而知还"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    },
+    {
+      "q": "春天草木蓬勃生长，泉水缓缓流动。陶渊明在《归去来兮辞并序》中描写这一派生机盎然的春景的两句是：{1}，{2}。",
+      "a": [
+        "木欣欣以向荣",
+        "泉涓涓而始流"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "陶渊明归隐后，登上东边的高地放声长啸，又到清澈的溪边吟诗赋文。这两句是：{1}，{2}。",
+      "a": [
+        "登东皋以舒啸",
+        "临清流而赋诗"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "种树郭橐驼传 · 柳宗元": [
+    {
+      "q": "《种树郭橐驼传》中讲种树的要领：树根要舒展，培土要平整，土要原来的，捣土要细密，句子是“{1}，{2}，{3}，{4}”。",
+      "a": [
+        "其本欲舒",
+        "其培欲平",
+        "其土欲故",
+        "其筑欲密"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《种树郭橐驼传》中说栽种时像疼爱孩子一样细心，栽好后像丢弃一样不再管它，句子是“{1}，{2}”。",
+      "a": [
+        "其莳也若子",
+        "其置也若弃"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《种树郭橐驼传》中写为官者喜欢频繁发布政令，好像很怜爱百姓，最终却带来祸患，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "见长人者好烦其令",
+        "若甚怜焉",
+        "而卒以祸"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《谏太宗十思疏》主张简能而任之，《种树郭橐驼传》也反对政令繁苛；郭橐驼说为官者频繁下令反而带来祸患，句子是“{1}，{2}，{3}”。",
+      "a": [
+        "见长人者好烦其令",
+        "若甚怜焉",
+        "而卒以祸"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "郭橐驼种树成功的诀窍，在于顺应树木的生长规律，让它的天性得以充分发展。请写出这两句：{1}，{2}。",
+      "a": [
+        "能顺木之天",
+        "以致其性焉尔"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    },
+    {
+      "q": "柳宗元笔下的郭橐驼认为，种树者要做到“栽种时精心，栽后放手”。这个看似矛盾的经验，用原文来说就是：{1}，{2}。",
+      "a": [
+        "其莳也若子",
+        "其置也若弃"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "有人种树时，表面上爱树、忧树，实际上却在害树、仇树。郭橐驼指出这正是种树的大忌。这四句是：{1}，{2}，{3}，{4}。",
+      "a": [
+        "虽曰爱之",
+        "其实害之",
+        "虽曰忧之",
+        "其实仇之"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    },
+    {
+      "q": "柳宗元写《种树郭橐驼传》的用意，是借种树之理来警示做官的人。文章结尾明确点出这一目的的一句是：{1}。",
+      "a": [
+        "传其事以为官戒"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    }
+  ],
+  "石钟山记 · 苏轼": [
+    {
+      "q": "《石钟山记》中写有巨大的声音从水上发出，像钟鼓声一样连续不断，句子是“{1}，{2}”。",
+      "a": [
+        "大声发于水上",
+        "噌吰如钟鼓不绝"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《石钟山记》中写山脚下都是石头的洞穴和裂缝，不知道它们的深浅，句子是“{1}，{2}”。",
+      "a": [
+        "山下皆石穴罅",
+        "不知其浅深"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《石钟山记》中提出凡事不亲眼看见、亲耳听到，就凭空推断它的有无，是不行的，句子是“{1}，{2}”。",
+      "a": [
+        "事不目见耳闻",
+        "而臆断其有无"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《游褒禅山记》强调尽力探索，《石钟山记》则强调实地考察，提出不能凭空臆断的句子是“{1}，{2}”。",
+      "a": [
+        "事不目见耳闻",
+        "而臆断其有无"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "某景区讲解员说：“石钟山为什么叫石钟山？郦道元认为是水石相击发出钟声。”这一说法在苏轼《石钟山记》开头被原文引用：{1}，{2}，{3}。",
+      "a": [
+        "微风鼓浪",
+        "水石相搏",
+        "声如洪钟"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "苏轼为探求石钟山得名真相，在一个月明的夜晚，与儿子苏迈乘小船来到绝壁之下。这三句是：{1}，{2}，{3}。",
+      "a": [
+        "至莫夜月明",
+        "独与迈乘小舟",
+        "至绝壁下"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "夜色中，绝壁旁的大石高耸千尺，像猛兽奇鬼，似乎要扑向人。苏轼描写的这三句是：{1}，{2}，{3}。",
+      "a": [
+        "大石侧立千尺",
+        "如猛兽奇鬼",
+        "森然欲搏人"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "苏轼在《石钟山记》中总结：凡事不亲眼所见、亲耳所闻，就不能凭主观臆断其有无。这两句是：{1}，{2}。",
+      "a": [
+        "事不目见耳闻",
+        "而臆断其有无"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    }
+  ],
+  "拟行路难（其四） · 鲍照": [
+    {
+      "q": "《拟行路难》中说人生各有命数，怎么能边走边叹、坐着发愁，句子是“{1}，{2}”。",
+      "a": [
+        "人生亦有命",
+        "安能行叹复坐愁"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《拟行路难》结尾说人心不是木石怎能没有感触，却只能忍气吞声、徘徊不敢说，句子是“{1}，{2}”。",
+      "a": [
+        "心非木石岂无感",
+        "吞声踯躅不敢言"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "抒发内心愤懑却只能强忍不言，可以引用《拟行路难》中的“{1}，{2}”。",
+      "a": [
+        "心非木石岂无感",
+        "吞声踯躅不敢言"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《拟行路难》中“{1}，{2}”两句，以水泻平地起兴，暗喻人生际遇各不相同。",
+      "a": [
+        "泻水置平地",
+        "各自东西南北流"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《行路难》写‘拔剑四顾心茫然’，《拟行路难》则写寒门士人受压抑的悲愤，结尾强忍不言的句子是“{1}，{2}”。",
+      "a": [
+        "心非木石岂无感",
+        "吞声踯躅不敢言"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "鲍照以水倒在地上向不同方向流去为喻，感叹人生际遇各不相同。这两句是：{1}，{2}。",
+      "a": [
+        "泻水置平地",
+        "各自东西南北流"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    },
+    {
+      "q": "鲍照在《拟行路难（其四）》中认为人生自有命运安排，不必整日唉声叹气、愁坐不安。这两句是：{1}，{2}。",
+      "a": [
+        "人生亦有命",
+        "安能行叹复坐愁"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    },
+    {
+      "q": "鲍照为排遣愁怀，倒酒自慰，举起酒杯却中断了《行路难》之歌。这两句是：{1}，{2}。",
+      "a": [
+        "酌酒以自宽",
+        "举杯断绝歌路难"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "鲍照说人心并非木石，怎会没有感慨，只是把话咽进肚里，徘徊不前而不敢说出来。这两句是：{1}，{2}。",
+      "a": [
+        "心非木石岂无感",
+        "吞声踯躅不敢言"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "客至 · 杜甫": [
+    {
+      "q": "《客至》中写花间小路不曾因客人到来而打扫，柴门今天才为你打开，句子是“{1}，{2}”。",
+      "a": [
+        "花径不曾缘客扫",
+        "蓬门今始为君开"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《客至》中写如果客人愿意与邻家老翁对饮，就隔着篱笆喊他过来喝完剩下的酒，句子是“{1}，{2}”。",
+      "a": [
+        "肯与邻翁相对饮",
+        "隔篱呼取尽余杯"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "描写主人热情迎客、因客人到来才打开柴门，可以引用《客至》中的“{1}，{2}”。",
+      "a": [
+        "花径不曾缘客扫",
+        "蓬门今始为君开"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《客至》中“{1}，{2}”两句，写草堂周围春水环绕、群鸥日日光临的清幽环境。",
+      "a": [
+        "舍南舍北皆春水",
+        "但见群鸥日日来"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《过故人庄》写‘故人具鸡黍’，《客至》也写农家待客的简朴；杜甫因家贫只能以旧酒待客的句子是“{1}，{2}”。",
+      "a": [
+        "盘飧市远无兼味",
+        "樽酒家贫只旧醅"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "杜甫《客至》开篇写草堂周围春水环绕，日日只有群鸥飞来。这两句是：{1}，{2}。",
+      "a": [
+        "舍南舍北皆春水",
+        "但见群鸥日日来"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "杜甫为迎接客人，首次打扫长满花草的小路，打开从未开启的柴门。这两句是：{1}，{2}。",
+      "a": [
+        "花径不曾缘客扫",
+        "蓬门今始为君开"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "因距市集远，菜肴简单；因家贫，只有旧酿的酒待客。杜甫为此感到歉意的两句是：{1}，{2}。",
+      "a": [
+        "盘飧市远无兼味",
+        "樽酒家贫只旧醅"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "杜甫邀请邻居老翁一起对饮，隔着篱笆高声招呼，要喝完杯中剩余的酒。这两句是：{1}，{2}。",
+      "a": [
+        "肯与邻翁相对饮",
+        "隔篱呼取尽余杯"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "登快阁 · 黄庭坚": [
+    {
+      "q": "《登快阁》中写千山落叶、天空高远，一道澄江、月光明净，句子是“{1}，{2}”。",
+      "a": [
+        "落木千山天远大",
+        "澄江一道月分明"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《登快阁》结尾写乘船万里吹笛归去，这颗心与白鸥结盟，句子是“{1}，{2}”。",
+      "a": [
+        "万里归船弄长笛",
+        "此心吾与白鸥盟"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "描写登高远眺、秋空辽阔江月分明的景象，可以引用《登快阁》中的“{1}，{2}”。",
+      "a": [
+        "落木千山天远大",
+        "澄江一道月分明"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《登快阁》中“{1}，{2}”两句，写公务之余登阁赏景的闲适。",
+      "a": [
+        "痴儿了却公家事",
+        "快阁东西倚晚晴"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《登高》写‘无边落木萧萧下’，《登快阁》也写秋景，其中写千山落叶、天空高远的句子是“{1}，{2}”。",
+      "a": [
+        "落木千山天远大",
+        "澄江一道月分明"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "黄庭坚说自己这个“痴儿”办完了公事，登上快阁，在傍晚的晴空中欣赏美景。这两句是：{1}，{2}。",
+      "a": [
+        "痴儿了却公家事",
+        "快阁东西倚晚晴"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "古人写秋景常写“落木”。黄庭坚《登快阁》中写千山木叶飘落、天空更显辽远的两句，与杜甫“无边落木萧萧下”意境相通。这两句是：{1}，{2}。",
+      "a": [
+        "落木千山天远大",
+        "澄江一道月分明"
+      ],
+      "t": [
+        "理解性默写",
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "黄庭坚化用伯牙断弦的典故，感叹知音不在；又借阮籍“青眼”的典故，说只有美酒能让他开怀。这两句是：{1}，{2}。",
+      "a": [
+        "朱弦已为佳人绝",
+        "青眼聊因美酒横"
+      ],
+      "t": [
+        "理解性默写"
+      ]
+    },
+    {
+      "q": "黄庭坚在《登快阁》结尾表达归隐之志：想乘船归去吹笛，与白鸥结盟为伴。这两句是：{1}，{2}。",
+      "a": [
+        "万里归船弄长笛",
+        "此心吾与白鸥盟"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ],
+  "临安春雨初霁 · 陆游": [
+    {
+      "q": "《临安春雨初霁》中写在小楼上听了一夜春雨，深巷里明天早晨会有人卖杏花，句子是“{1}，{2}”。",
+      "a": [
+        "小楼一夜听春雨",
+        "深巷明朝卖杏花"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《临安春雨初霁》结尾说不要感叹白衣被风尘染脏，还赶得上清明节回到家，句子是“{1}，{2}”。",
+      "a": [
+        "素衣莫起风尘叹",
+        "犹及清明可到家"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "描写江南春雨之夜、次日清晨深巷卖花的景象，可以引用《临安春雨初霁》中的“{1}，{2}”。",
+      "a": [
+        "小楼一夜听春雨",
+        "深巷明朝卖杏花"
+      ],
+      "t": [
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "《临安春雨初霁》中“{1}，{2}”两句，写客居京华、世情淡薄的感慨。",
+      "a": [
+        "世味年来薄似纱",
+        "谁令骑马客京华"
+      ],
+      "t": [
+        "名句默写"
+      ]
+    },
+    {
+      "q": "《书愤》写‘铁马秋风大散关’的豪情，《临安春雨初霁》则写客居京华的闲适与无奈，其中写夜听春雨、晨卖杏花的句子是“{1}，{2}”。",
+      "a": [
+        "小楼一夜听春雨",
+        "深巷明朝卖杏花"
+      ],
+      "t": [
+        "对比互现(跨篇)"
+      ]
+    },
+    {
+      "q": "陆游感叹如今人情世态淡薄如纱，不明白自己为何还要骑马来到京城。这两句是：{1}，{2}。",
+      "a": [
+        "世味年来薄似纱",
+        "谁令骑马客京华"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "陆游在临安小楼上听了一夜春雨，想象次日清晨深巷中会有人叫卖杏花。这两句是：{1}，{2}。",
+      "a": [
+        "小楼一夜听春雨",
+        "深巷明朝卖杏花"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "陆游闲居无聊，在短纸上歪歪斜斜地练习草书，又在晴窗下细细地品茶。这两句是：{1}，{2}。",
+      "a": [
+        "矮纸斜行闲作草",
+        "晴窗细乳戏分茶"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    },
+    {
+      "q": "陆游在《临安春雨初霁》结尾说，自己的素衣不会被京城的风尘染黑，因为还来得及在清明前赶回家。这两句是：{1}，{2}。",
+      "a": [
+        "素衣莫起风尘叹",
+        "犹及清明可到家"
+      ],
+      "t": [
+        "理解性默写",
+        "情境式默写"
+      ]
+    }
+  ]
+};
+/* BANK:END */
+
+/* ================================================================
+   题库合并：内置 + 用户自定义（localStorage）
+   ================================================================ */
+const LS_BANK = "mq-bank-v1";
+const LS_AI   = "mq-ai";
+let OFFLINE = {};
+
+/* ---------- 题型标签 ---------- */
+const TYPE_ALL = ["理解性默写","情境式默写","名句默写","对比互现(跨篇)"];
+const TYPE_LABEL = {
+  "理解性默写":"理解性", "情境式默写":"情境",
+  "名句默写":"名句", "对比互现(跨篇)":"对比"
+};
+function typeLabel(t){ return TYPE_LABEL[t] || t; }
+function itemTypes(it){
+  const t = (it && Array.isArray(it.t)) ? it.t.filter(x => TYPE_ALL.includes(x)) : [];
+  return t.length ? t : ["理解性默写"];
+}
+function normalizeItem(x){
+  if (!x || typeof x.q !== "string" || !x.q.trim()) return null;
+  if (!Array.isArray(x.a) || !x.a.length) return null;
+  const t = Array.isArray(x.t) ? x.t.filter(v => TYPE_ALL.includes(v)) : [];
+  return { q: x.q, a: x.a.map(String), t: t.length ? t : ["理解性默写"] };
+}
+/* 某篇目（可按题型过滤）的题库 */
+function bankFor(key, type){
+  if (!key) return [];
+  const bank = OFFLINE[key] || OFFLINE[String(key).split(" · ")[0]] || [];
+  return type ? bank.filter(it => itemTypes(it).includes(type)) : bank;
+}
+function typeCounts(key){
+  const c = {};
+  TYPE_ALL.forEach(t => { c[t] = 0; });
+  bankFor(key).forEach(it => itemTypes(it).forEach(t => { c[t] = (c[t] || 0) + 1; }));
+  return c;
+}
+function currentText(){ return (textSel.value || "").replace("（自建）",""); }
+
+/* ---------- 题库合并：内置 + 用户自定义 ---------- */
+function loadBank(){
+  OFFLINE = JSON.parse(JSON.stringify(BUILTIN));
+  try{
+    const custom = JSON.parse(localStorage.getItem(LS_BANK) || "{}");
+    Object.keys(custom).forEach(k => {
+      if (!Array.isArray(custom[k]) || !custom[k].length) return;
+      const merged = (OFFLINE[k] || []).map(x => ({ ...x }));
+      custom[k].forEach(raw => {
+        if (!raw) return;
+        // 删除标记：用户在编辑中改写了内置题，旧题干需要移除
+        if (raw.del && typeof raw.q === "string"){
+          const di = merged.findIndex(x => x.q === raw.q);
+          if (di >= 0) merged.splice(di, 1);
+          return;
+        }
+        const item = normalizeItem(raw);
+        if (!item) return;
+        const i = merged.findIndex(x => x.q === item.q);
+        if (i >= 0) merged[i] = item;      // 同一题干 → 以用户版本覆盖
+        else merged.push(item);            // 新题 → 追加
+      });
+      OFFLINE[k] = merged;
+    });
+  }catch(e){}
+}
+/* 只把与内置题库不同的部分写进 localStorage（增量式，便于日后升级题库） */
+function saveBank(){
+  try{
+    const custom = {};
+    const norm = x => JSON.stringify({ q:x.q, a:x.a, t:itemTypes(x) });
+    const keys = new Set([...Object.keys(BUILTIN), ...Object.keys(OFFLINE)]);
+    keys.forEach(k => {
+      const base = BUILTIN[k] || [];
+      const cur  = OFFLINE[k] || [];
+      const diff = cur.filter(it => {
+        const b = base.find(x => x.q === it.q);
+        return !b || norm(b) !== norm(it);
+      }).map(it => ({ q: it.q, a: it.a.slice(), t: itemTypes(it) }));
+      // 内置题被改写/删除后，记录旧题干作为删除标记
+      const del = base.filter(b => !cur.some(x => x.q === b.q))
+                      .map(b => ({ q: b.q, del: true }));
+      if (diff.length || del.length) custom[k] = diff.concat(del);
+    });
+    localStorage.setItem(LS_BANK, JSON.stringify(custom));
+  }catch(e){}
+}
+loadBank();
+
+/* ================================================================
+   状态 & DOM
+   ================================================================ */
+const $ = s => document.querySelector(s);
+const state = {
+  title:"", items:[], showAns:false, text:"", randomSeed:false,
+  type:"理解性默写", requested:0, available:null, fromBank:false
+};
+
+/* ---------- 投屏视图设置：分栏 / 字号 / 左栏 ---------- */
+const LS_VIEW = "mq-view-v1";
+const FONT_STEPS = [16, 18, 20, 23, 26, 30, 34, 38, 43, 48];
+const view = { cols: 2, font: 20, side: true };
+
+function loadView(){
+  try{
+    const v = JSON.parse(localStorage.getItem(LS_VIEW) || "{}");
+    if (v.cols === 1 || v.cols === 2) view.cols = v.cols;
+    if (typeof v.side === "boolean") view.side = v.side;
+    if (v.font != null && isFinite(+v.font)){
+      const f = +v.font;
+      view.font = FONT_STEPS.reduce((best, s) =>
+        Math.abs(s - f) < Math.abs(best - f) ? s : best, FONT_STEPS[0]);
+    }
+  }catch(e){}
+}
+function saveView(){
+  try{ localStorage.setItem(LS_VIEW, JSON.stringify(view)); }catch(e){}
+}
+function applyView(){
+  const p = $("#paper");
+  if (p){
+    p.classList.toggle("cols-2", view.cols === 2);
+    p.classList.toggle("cols-1", view.cols === 1);
+    p.style.setProperty("--q-size", view.font + "px");
+  }
+  document.body.classList.toggle("side-hidden", !view.side);
+  updateViewUI();
+}
+function updateViewUI(){
+  document.querySelectorAll("#col-seg button").forEach(b => {
+    const on = +b.dataset.col === view.cols;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  const val = $("#fs-val"); if (val) val.textContent = view.font + " px";
+  const minus = $("#fs-minus"), plus = $("#fs-plus");
+  if (minus) minus.disabled = view.font <= FONT_STEPS[0];
+  if (plus) plus.disabled = view.font >= FONT_STEPS[FONT_STEPS.length - 1];
+}
+function setCols(n){
+  if (n !== 1 && n !== 2) return;
+  view.cols = n; saveView(); applyView();
+}
+function stepFont(delta){
+  let i = FONT_STEPS.indexOf(view.font);
+  if (i < 0) i = 2;
+  i = Math.max(0, Math.min(FONT_STEPS.length - 1, i + delta));
+  if (FONT_STEPS[i] === view.font) return;
+  view.font = FONT_STEPS[i]; saveView(); applyView();
+}
+function setSidebar(shown){
+  view.side = !!shown; saveView(); applyView();
+}
+
+loadView();
+applyView();
+
+$("#btn-collapse").addEventListener("click", () => setSidebar(false));
+$("#btn-expand").addEventListener("click", () => setSidebar(true));
+
+/* 工具栏是每次渲染重建的，用事件委托接住分栏 / 字号按钮 */
+document.addEventListener("click", e => {
+  const seg = e.target.closest("#col-seg button");
+  if (seg){ setCols(+seg.dataset.col); return; }
+  if (e.target.closest("#fs-minus")){ stepFont(-1); return; }
+  if (e.target.closest("#fs-plus")){ stepFont(1); return; }
+});
+
+/* 投屏快捷键：1/2 分栏，[ ] 字号，A 答案，S 左栏 */
+document.addEventListener("keydown", e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  const tag = (t && t.tagName ? t.tagName : "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable)) return;
+  if ($("#dlg").open) return;
+  const k = e.key;
+  let used = true;
+  if (k === "1") setCols(1);
+  else if (k === "2") setCols(2);
+  else if (k === "[") stepFont(-1);
+  else if (k === "]") stepFont(1);
+  else if (k === "a" || k === "A") toggleAns();
+  else if (k === "s" || k === "S") setSidebar(!view.side);
+  else used = false;
+  if (used) e.preventDefault();
+});
+
+const bookSel = $("#book"), textSel = $("#text");
+Object.keys(LIB).forEach(b => bookSel.add(new Option(b, b)));
+
+/* 所有教材中登记过的篇目（用于区分「自建篇目」） */
+const ALL_TEXTS = new Set(Object.keys(LIB).flatMap(b => LIB[b]));
+fillTexts();
+
+/* 重建篇目下拉；keep 用于保留当前选中项 */
+function fillTexts(preferred){
+  const keep = preferred !== undefined ? preferred : textSel.value;
+  textSel.innerHTML = "";
+  const list = LIB[bookSel.value] || [];
+  list.forEach(t => textSel.add(new Option(t, t)));
+  // 只把「不在任何教材清单里」的篇目作为自建篇目列出
+  Object.keys(OFFLINE).forEach(k => {
+    if (list.includes(k) || ALL_TEXTS.has(k)) return;
+    textSel.add(new Option(k + "（自建）", k));
+  });
+  if (keep && [...textSel.options].some(o => o.value === keep)) textSel.value = keep;
+  refreshBankHint();
+}
+bookSel.addEventListener("change", () => fillTexts());
+textSel.addEventListener("change", () => { refreshBankHint(); });
+
+/* 当前篇目的题量统计 + 题型可用性提示 */
+function refreshBankHint(){
+  const key = currentText();
+  const hint = $("#bank-hint");
+  if (!key || !hint) return;
+  const all = bankFor(key), counts = typeCounts(key);
+  if (!all.length){
+    hint.className = "bank-hint none";
+    hint.textContent = "本篇暂无离线题库，可用左侧 AI 生成或导入 JSON。";
+  } else {
+    hint.className = "bank-hint";
+    hint.innerHTML = "题库共 <b>" + all.length + "</b> 题（同题可跨类）<br>可出：" +
+      TYPE_ALL.map(t => typeLabel(t) + " " + counts[t]).join(" / ");
+  }
+  const chips = [...document.querySelectorAll("#type-chips .chip")];
+  chips.forEach(c => {
+    const n = counts[c.dataset.v] || 0;
+    c.dataset.count = n;
+    c.classList.toggle("zero", n === 0);
+    c.title = n ? ("本篇 " + n + " 题") : "本篇暂无此题型";
+    const old = c.querySelector(".cnt");
+    if (old) old.remove();
+    const s = document.createElement("span");
+    s.className = "cnt";
+    s.textContent = all.length ? "·" + n : "";
+    c.appendChild(s);
+  });
+  // 当前题型无题时自动切到第一个有题的题型
+  const on = document.querySelector("#type-chips .chip.on");
+  if (on && !(counts[on.dataset.v] > 0)){
+    const fallback = chips.find(c => (counts[c.dataset.v] || 0) > 0);
+    if (fallback){
+      chips.forEach(c => c.classList.remove("on"));
+      fallback.classList.add("on");
+    }
+  }
+}
+refreshBankHint();
+
+document.querySelectorAll("#type-chips .chip").forEach(c => {
+  c.addEventListener("click", () => {
+    if (!aiReady() && +(c.dataset.count || 0) === 0){
+      toast("本篇暂无「" + c.dataset.v + "」题目");
+      return;
+    }
+    document.querySelectorAll("#type-chips .chip").forEach(x => x.classList.remove("on"));
+    c.classList.add("on");
+  });
+});
+
+/* AI 配置存取（本地 file:// 下 localStorage 可能受限，全部 try 包裹） */
+const aiUrl = $("#ai-url"), aiKey = $("#ai-key"), aiModel = $("#ai-model");
+try{
+  const saved = JSON.parse(localStorage.getItem(LS_AI) || "{}");
+  aiUrl.value = saved.url || ""; aiKey.value = saved.key || ""; aiModel.value = saved.model || "";
+}catch(e){}
+function saveAI(){
+  try{
+    localStorage.setItem(LS_AI, JSON.stringify({ url:aiUrl.value.trim(), key:aiKey.value.trim(), model:aiModel.value.trim() }));
+  }catch(e){}
+  refreshAIStatus();
+  toast("AI 配置已保存（本机浏览器）");
+}
+$("#btn-save-ai").addEventListener("click", saveAI);
+function aiReady(){
+  return aiUrl.value.trim() && aiKey.value.trim() && aiModel.value.trim();
+}
+function refreshAIStatus(){
+  const el = $("#ai-status");
+  if (aiReady()){
+    el.classList.remove("off");
+    el.innerHTML = "当前：<b>AI 已就绪</b>（" + escapeHtml(aiModel.value.trim()) + "），可为任意篇目生成题目。";
+  } else {
+    el.classList.add("off");
+    el.innerHTML = "当前：<b>离线题库模式</b>，无需联网。填好上方配置并保存后，可为任意篇目用 AI 生成题目。";
+  }
+}
+refreshAIStatus();
+
+$("#btn-test-ai").addEventListener("click", async () => {
+  if (!aiReady()) return toast("请先填完整接口地址、Key 和模型");
+  toast("正在测试连接…");
+  try{
+    const reply = await callAI("请只回复：OK");
+    toast(reply.includes("OK") ? "连接成功 ✔" : "已连通，模型返回：" + reply.slice(0, 40));
+  }catch(e){
+    toast("连接失败：" + e.message);
+  }
+});
+
+async function callAI(userMsg, sysMsg){
+  const res = await fetch(aiUrl.value.trim(), {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", "Authorization":"Bearer " + aiKey.value.trim() },
+    body: JSON.stringify({
+      model: aiModel.value.trim(),
+      temperature: 0.8,
+      messages: [ { role:"system", content: sysMsg }, { role:"user", content: userMsg } ]
+    })
+  });
+  if (!res.ok){
+    const t = await res.text().catch(() => "");
+    throw new Error("HTTP " + res.status + " " + t.slice(0, 120));
+  }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || "";
+}
+
+const SYS_PROMPT = `你是高中语文默写题命题专家。任务：根据给定的古诗文篇目，编写高考风格（2024/2025 新课标卷范式）的"理解性默写"题。
+
+要求：
+1. 情境化设问：用真实或合理的场景引入（毕业典礼、班会发言、家书往来、游历见闻、家国情怀、读书感悟等），让学生先理解情境再反查名句，禁止"《XX》中写……的句子是"这种复述式问法。
+2. 关联化设问：可让本诗/文中的某个词语或意象与另一篇目呼应（如"翠幕"→《望海潮》"风帘翠幕"），也可考同类对举（如"风与雨雪对举"）、思想情感相通（如《师说》与《劝学》），并在题干中注明关联篇目。
+3. 画面意境式：可用文字描绘画面情境，让学生写出与画面相契合的名句（工具不支持插图，不要写"下图"）。
+4. 适量开放题：可设"可以是____"式开放题，题干注明"（答案不唯一）"，答案栏给一个规范示例。
+5. 题干不得直接复述原句意思，不得出现完整答案句；允许把答案中的某个关键词作为线索（如"翠幕"）。
+6. 句中以 {1} {2} {3} 标注挖空位置，挖空个数必须与答案条数严格相等；答案严格忠于原文，不写错别字，标点按原文。
+7. 覆盖不同考点，同一篇目内不重复挖空同一句。
+8. 只输出 JSON 数组，不要任何其他文字，格式：
+[{"q":"……{1}，{2}……","a":["答案一","答案二"]}]`;
+
+/* ================================================================
+   生成
+   ================================================================ */
+$("#btn-gen").addEventListener("click", () => { state.randomSeed = false; generate(); });
+
+async function generate(){
+  const text = currentText() || "劝学 · 荀子";
+  const name = text.split(" · ")[0];
+  const author = text.includes(" · ") ? text.split(" · ")[1] : "";
+  const n = +$("#count").value;
+  const type = document.querySelector("#type-chips .chip.on").dataset.v;
+  state.text = text;
+  state.type = type;
+  state.requested = n;
+  state.available = null;
+  state.fromBank = false;
+
+  const paper = $("#paper");
+  paper.innerHTML = '<div class="loading"><div class="spin"></div>正在命题：' + escapeHtml(text) + " · " + type + " × " + n + " 题…</div>";
+
+  let items = null;
+
+  if (aiReady()){
+    try{
+      const extra = type === "名句默写"
+        ? "本次直接挖空名句，提示语简短。"
+        : type === "情境式默写"
+        ? "本次提示语以生活化情境引入，如'当我们想表达……时，可以引用……'。"
+        : type === "对比互现(跨篇)"
+        ? "其中约三分之一题目应与本册其他名篇进行关联对比（如与《师说》《赤壁赋》等思想相通之处），并在提示语中注明关联篇目。"
+        : "";
+      const user = "篇目：《" + name + "》" + (author ? "（" + author + "）" : "") + "\n请命制 " + n + " 道理解性默写题。" + extra;
+      const raw = await callAI(user, SYS_PROMPT);
+      items = parseItems(raw);
+      if (!items.length) throw new Error("AI 返回格式无法解析");
+      items = items.map(it => ({ ...it, t: [type] }));
+    }catch(e){
+      toast("AI 生成失败：" + e.message + "，已回退到离线题库");
+    }
+  }
+
+  if (!items){
+    const bank = bankFor(text, type);
+    if (!bank.length){
+      state.items = [];
+      state.showAns = false;
+      paper.innerHTML = emptyHTML(text, type);
+      document.body.classList.remove("has-paper");
+      return;
+    }
+    // 离线：默认按日期种子抽题（同一天同题，方便全班统一）；
+    // 点"再出一组"时用随机种子。种子带上题型，避免换题型时题目顺序雷同。
+    const seed = state.randomSeed
+      ? (Date.now() % 2147483647)
+      : (dateSeed() + n + type.length * 97 + hashType(type));
+    items = shuffleArr(bank, seededRandom(seed)).slice(0, n);
+    state.available = bank.length;
+    state.fromBank = true;
+  }
+
+  items = items.slice(0, n);
+  state.title = "《" + name + "》" + type;
+  state.items = items;
+  renderPaper();
+}
+
+function parseItems(raw){
+  let s = raw.trim();
+  const m = s.match(/\[[\s\S]*\]/);
+  if (m) s = m[0];
+  try{
+    const arr = JSON.parse(s);
+    return arr.filter(x => x.q && Array.isArray(x.a) && x.a.length)
+              .map(x => ({ q: String(x.q), a: x.a.map(String) }));
+  }catch(e){ return []; }
+}
+
+/* ================================================================
+   渲染试卷
+   ================================================================ */
+function renderPaper(){
+  const p = $("#paper");
+  const today = new Date();
+  p.classList.toggle("show-ans", state.showAns);
+  document.body.classList.toggle("has-paper", state.items.length > 0);
+  const short = state.fromBank && state.available != null && state.items.length < state.requested;
+  const notice = short
+    ? '<div class="notice no-print">本篇「' + escapeHtml(state.type) + '」共 ' + state.available +
+      " 题，已全部展示；换题型或调整题量可得到更贴合的卷子。</div>"
+    : "";
+  p.innerHTML =
+    '<div class="paper-head">' +
+      "<h2>" + escapeHtml(state.title) + "</h2>" +
+      '<div class="sub">' + today.getFullYear() + "年" + (today.getMonth()+1) + "月" + today.getDate() + "日 · 共 " +
+      state.items.length + " 题 · 班级＿＿＿＿ 姓名＿＿＿＿</div>" +
+    "</div>" +
+    /* 桌面版：顶部工具栏是本文件唯一的控制区（底部 dock 只在触屏版文件里） */
+    '<div class="toolbar no-print">' +
+      '<div class="viewctl">' +
+        '<div class="seg" id="col-seg" role="group" aria-label="分栏">' +
+          '<button type="button" data-col="1" title="单栏（快捷键 1）">1 栏</button>' +
+          '<button type="button" data-col="2" title="双栏（快捷键 2）">2 栏</button>' +
+        "</div>" +
+        '<div class="fs" title="题目字号（快捷键 [ 缩小 / ] 放大）">' +
+          '<button type="button" id="fs-minus" aria-label="缩小字号">A−</button>' +
+          '<span class="val" id="fs-val">20 px</span>' +
+          '<button type="button" id="fs-plus" aria-label="放大字号">A＋</button>' +
+        "</div>" +
+      "</div>" +
+      '<div class="btns">' +
+        '<button class="tbtn" id="btn-ans" title="显示或隐藏答案（快捷键 A）">显示答案</button>' +
+        '<button class="tbtn" id="btn-again">再出一组</button>' +
+        '<button class="tbtn" id="btn-add">加一题</button>' +
+        '<button class="tbtn primary" id="btn-print">打印 / 导出PDF</button>' +
+      "</div>" +
+    "</div>" +
+    notice +
+    '<ol id="qlist"></ol>' +
+    '<div class="note no-print">' +
+      "<b>校对提示：</b>悬停题目可编辑 / 换一题 / 删除。题号后若出现黄色「挖空 N / 答案 M」标记，说明该题题干挖空个数与答案条数不一致，答案会错位显示，请点「编辑」修正后再打印。" +
+      "版本差异请留意：“君子生非异也”之“生”通“性”（一说作“性”）；“輮使之然也”之“輮”部分版本作“煣”；“蟹六跪而二螯”部分版本作“八跪”；“一夜飞度镜湖月”之“度”一说作“渡”。以所用教材为准。" +
+    "</div>";
+
+  const ol = p.querySelector("#qlist");
+  state.items.forEach((it, i) => {
+    const li = document.createElement("li");
+    li.className = "q";
+    const nBlank = (String(it.q).match(/\{\d\}/g) || []).length;
+    const nAns = (it.a || []).length;
+    if (nBlank !== nAns) li.classList.add("bad");
+
+    li.innerHTML = '<span class="idx">' + cn(i+1) + "</span>" +
+      questionHTML(it.q) +
+      (nBlank !== nAns ? '<span class="badge">挖空 ' + nBlank + " / 答案 " + nAns + "</span>" : "") +
+      '<span class="ops no-print">' +
+        '<button class="obtn" data-op="edit">编辑</button>' +
+        '<button class="obtn" data-op="swap">换一题</button>' +
+        '<button class="obtn" data-op="del">删除</button>' +
+      "</span>";
+    const blanks = li.querySelectorAll(".blank");
+    // 答案挂在 JS 属性上，隐藏时不写入 DOM，避免复制/选中泄露
+    (it.a || []).forEach((ans, j) => { if (blanks[j]) blanks[j]._ans = ans; });
+    applyAns(li);
+    ol.appendChild(li);
+  });
+
+  p.querySelector("#btn-ans").addEventListener("click", toggleAns);
+  p.querySelector("#btn-print").addEventListener("click", printPaper);
+  p.querySelector("#btn-again").addEventListener("click", () => { state.randomSeed = true; generate(); });
+  p.querySelector("#btn-add").addEventListener("click", () => addOne());
+
+  ol.addEventListener("click", e => {
+    const btn = e.target.closest(".obtn");
+    if (!btn) return;
+    const li = btn.closest("li.q");
+    const i = [...ol.children].indexOf(li);
+    if (btn.dataset.op === "del"){
+      state.items.splice(i,1);
+      if (!state.items.length) clearPaper();
+      else renderPaper();
+    }
+    if (btn.dataset.op === "edit") openEdit(i);
+    if (btn.dataset.op === "swap") swapOne(i);
+  });
+
+  updateViewUI();   // 工具栏是新建的，把当前分栏 / 字号状态同步上去
+}
+
+/* 没有题目时清空纸面，避免残留上一份卷子 */
+function clearPaper(){
+  const p = $("#paper");
+  state.items = [];
+  state.title = "";
+  state.showAns = false;
+  p.classList.remove("show-ans");
+  document.body.classList.remove("has-paper");
+  p.innerHTML = emptyHTML(state.text, state.type);
+}
+
+function printPaper(){
+  if (!state.items.length) return;
+  // 打印前强制隐藏答案，避免打印出带答案的卷子
+  state.showAns = false;
+  const p = $("#paper");
+  p.classList.remove("show-ans");
+  p.querySelectorAll("li.q").forEach(applyAns);
+  syncAnsBtn();
+  setTimeout(() => window.print(), 60);
+}
+
+function toggleAns(){
+  if (!state.items.length) return;
+  state.showAns = !state.showAns;
+  const p = $("#paper");
+  p.classList.toggle("show-ans", state.showAns);
+  p.querySelectorAll("li.q").forEach(applyAns);
+  syncAnsBtn();
+}
+function syncAnsBtn(){
+  const b = $("#btn-ans");
+  if (b) b.textContent = state.showAns ? "隐藏答案" : "显示答案";
+}
+
+function applyAns(li){
+  li.querySelectorAll(".blank").forEach(b => {
+    b.textContent = state.showAns ? (b._ans || "") : "";
+  });
+}
+
+/* 编辑 */
+let editIdx = -1;
+let editOrigin = null;   // 打开编辑时的原题干，用于「改题」而不是「加题」
+function openEdit(i){
+  editIdx = i;
+  const it = state.items[i];
+  editOrigin = it ? it.q : null;
+  $("#dlg-q").value = it.q;
+  $("#dlg-a").value = (it.a || []).join("\n");
+  $("#dlg").showModal();
+}
+$("#dlg-cancel").addEventListener("click", () => { editOrigin = null; $("#dlg").close(); });
+$("#dlg-ok").addEventListener("click", () => {
+  const q = $("#dlg-q").value.trim();
+  const a = $("#dlg-a").value.split("\n").map(s => s.trim()).filter(Boolean);
+  if (!q || !a.length) return toast("提示语和答案不能为空");
+  if (editIdx >= 0 && editIdx < state.items.length){
+    const t = itemTypes(state.items[editIdx]);
+    // 若本题来自题库，就地改写原题（saveBank 会把旧题干记为删除标记）
+    const bank = OFFLINE[state.text] || OFFLINE[String(state.text).split(" · ")[0]] || [];
+    const bi = editOrigin == null ? -1 : bank.findIndex(x => x.q === editOrigin);
+    if (bi >= 0) bank[bi] = { q, a: a.slice(), t: itemTypes(bank[bi]) };
+    state.items[editIdx] = { q, a, t };
+  } else {
+    state.items.push({ q, a, t:[state.type || "理解性默写"] });
+  }
+  editOrigin = null;
+  saveCurrentToBank();
+  $("#dlg").close();
+  renderPaper();
+  toast("已保存（同步更新本机题库）");
+});
+
+/* 换一题 */
+async function swapOne(i){
+  const text = state.text || "劝学 · 荀子";
+  const name = text.split(" · ")[0];
+  const type = document.querySelector("#type-chips .chip.on")?.dataset.v || state.type;
+  let cand = null;
+  if (aiReady()){
+    try{
+      const have = state.items.map(x => x.q).join(" | ");
+      const raw = await callAI("篇目：《" + name + "》\n请命制 1 道理解性默写题。注意：不要与这些已有题目重复（挖空的句子不能相同）：" + have, SYS_PROMPT);
+      const arr = parseItems(raw);
+      if (arr.length) cand = { ...arr[0], t:[type] };
+    }catch(e){}
+  }
+  if (!cand){
+    const bank = bankFor(text, type).filter(b => !state.items.some(x => x.a[0] === b.a[0]));
+    if (bank.length) cand = bank[Math.floor(Math.random()*bank.length)];
+  }
+  if (cand){ state.items[i] = cand; renderPaper(); toast("已换新题"); }
+  else toast("没有可换的新题了");
+}
+
+/* 加一题 */
+function addOne(){
+  const text = state.text || "劝学 · 荀子";
+  const type = document.querySelector("#type-chips .chip.on")?.dataset.v || state.type || "理解性默写";
+  const bank = bankFor(text, type);
+  const used = state.items.map(x => x.a[0]);
+  const pool = bank.filter(b => !used.includes(b.a[0]));
+  if (pool.length){
+    state.items.push(pool[Math.floor(Math.random()*pool.length)]);
+  } else {
+    state.items.push({ q:"（新题）请在此处填写提示语，挖空用 {1} 标注：{1}", a:["待填答案"], t:[type] });
+    toast("题库已用完，已插入空白题，请点「编辑」填写");
+  }
+  renderPaper();
+}
+
+/* 把当前卷面上的题目写回本机题库（编辑/新增后持久化） */
+function saveCurrentToBank(){
+  const text = state.text || "劝学 · 荀子";
+  if (!text || !state.items.length) return;
+  const merged = (OFFLINE[text] || []).map(x => ({ ...x }));
+  state.items.forEach(it => {
+    if (!it.q || !it.a || !it.a.length) return;
+    const i = merged.findIndex(x => x.q === it.q);
+    if (i >= 0) merged[i] = { q: it.q, a: it.a.slice(), t: itemTypes(it) };
+    else merged.push({ q: it.q, a: it.a.slice(), t: itemTypes(it) });
+  });
+  OFFLINE[text] = merged;
+  saveBank();
+  refreshBankHint();   // 不重建下拉，避免丢掉当前选中项
+}
+
+/* ================================================================
+   题库导入 / 导出 / 重置
+   ================================================================ */
+$("#btn-export").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(OFFLINE, null, 2)], { type:"application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "默写题库-" + new Date().toISOString().slice(0,10) + ".json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast("题库已导出为 JSON");
+});
+
+$("#btn-import").addEventListener("click", () => $("#file-input").click());
+$("#file-input").addEventListener("change", e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const data = JSON.parse(r.result);
+      if (typeof data !== "object" || Array.isArray(data)) throw new Error("格式应为：{ 篇目名: [ {q,a}, ... ] }");
+      let n = 0, bad = 0;
+      Object.keys(data).forEach(k => {
+        if (!Array.isArray(data[k])) return;
+        const items = data[k].map(normalizeItem).filter(Boolean);
+        items.forEach(x => {
+          const nb = (String(x.q).match(/\{\d\}/g) || []).length;
+          if (nb !== x.a.length) bad++;
+        });
+        if (!items.length) return;
+        // 合并进现有题库：同题干覆盖，新题追加
+        const merged = (OFFLINE[k] || []).map(x => ({ ...x }));
+        items.forEach(item => {
+          const i = merged.findIndex(x => x.q === item.q);
+          if (i >= 0) merged[i] = item; else merged.push(item);
+        });
+        OFFLINE[k] = merged;
+        n += items.length;
+      });
+      saveBank();
+      fillTexts(currentText());
+      toast("已导入 " + n + " 题" + (bad ? "，其中 " + bad + " 题挖空数与答案数不一致，请检查" : ""));
+    }catch(err){
+      toast("导入失败：" + err.message);
+    }
+  };
+  r.readAsText(f, "utf-8");
+  e.target.value = "";
+});
+
+$("#btn-reset").addEventListener("click", () => {
+  if (!confirm("确定放弃本机所有改动，恢复内置校对题库？")) return;
+  try{ localStorage.removeItem(LS_BANK); }catch(e){}
+  loadBank();
+  fillTexts(currentText());
+  toast("已恢复内置题库");
+});
+
+/* ================================================================
+   工具函数
+   ================================================================ */
+function emptyHTML(key, type){
+  const name = String(key || currentText() || "").split(" · ")[0];
+  const counts = typeCounts(key || currentText());
+  const others = TYPE_ALL.filter(t => t !== type && counts[t] > 0)
+    .map(t => typeLabel(t) + " " + counts[t]).join("、");
+  const hasAny = TYPE_ALL.some(t => counts[t] > 0);
+  const total = Object.values(BUILTIN).reduce((s, list) => s + list.length, 0);
+  const tips = [];
+  if (others) tips.push("本篇可用的题型：" + others + "，切换题型即可。");
+  if (!hasAny) tips.push("内置题库已覆盖高中五册 " + Object.keys(BUILTIN).length + " 篇共 " + total + " 题；本篇暂无离线题目。");
+  tips.push(aiReady()
+    ? "也可用左侧 AI 生成，或用「导入题库」载入自己整理的 JSON。"
+    : "可切换篇目或题型，或用「导入题库」载入自己整理的 JSON。");
+  return '<div class="empty"><div class="icon">📝</div><p>《' + escapeHtml(name) +
+    '》暂无「' + escapeHtml(typeLabel(type || "理解性默写")) + '」离线题目。<br>' +
+    tips.join("<br>") + '</p></div>';
+}
+function hashType(t){
+  let h = 0;
+  for (const ch of String(t)) h = (h * 31 + ch.codePointAt(0)) % 100000;
+  return h;
+}
+function seededRandom(seed){
+  let s = seed % 2147483647; if (s <= 0) s += 2147483646;
+  return () => (s = s * 16807 % 2147483647) / 2147483647;
+}
+function dateSeed(){
+  const d = new Date();
+  return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate();
+}
+function shuffleArr(arr, rand){
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function cn(n){
+  const d = "零一二三四五六七八九";
+  if (n <= 10) return n === 10 ? "十" : d[n];
+  if (n < 20) return "十" + (n % 10 ? d[n % 10] : "");
+  if (n < 100){
+    return d[Math.floor(n / 10)] + "十" + (n % 10 ? d[n % 10] : "");
+  }
+  return String(n);
+}
+function escapeHtml(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+/* 中文避头尾：把「空 + 紧随标点」包成不可断行的一组，
+   避免双栏时逗号、句号被挤到下一行行首 */
+function questionHTML(q){
+  const B = '<span class="blank">&nbsp;</span>';
+  const TRAIL = '[，。；：、！？）》」』”’。]*';
+  const html = escapeHtml(q).replace(/\{(\d)\}/g, B);
+  return html.replace(new RegExp('(' + B + ')(' + TRAIL + ')', 'g'),
+    (m, blank, punct) => punct ? '<span class="nw">' + blank + punct + '</span>' : blank);
+}
+let toastT;
+function toast(msg){
+  const t = $("#toast");
+  t.textContent = msg; t.classList.add("on");
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove("on"), 3000);
+}
+</script>
+</body>
+</html>
